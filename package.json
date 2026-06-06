@@ -1,0 +1,12 @@
+{
+  "name": "golden-hoop-spell",
+  "version": "0.1.0",
+  "description": "A Claude Code plugin with multiple skills",
+  "keywords": ["claude", "claude-code", "skills", "plugin"],
+  "author": "wangdahoo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wangdahoo/golden-hoop-spell"
+  }
+}

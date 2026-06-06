@@ -1,0 +1,13 @@
+{
+  "project": {
+    "name": "Project Name",
+    "description": "Brief project description",
+    "tech_stack": [],
+    "created_at": ""
+  },
+  "sprints": [],
+  "metadata": {
+    "version": "1.0.0",
+    "last_updated": ""
+  }
+}
