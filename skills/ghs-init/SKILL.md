@@ -1,6 +1,6 @@
 ---
 name: ghs:init
-description: "Initialize ghs project tracking files. USE WHEN user wants to set up project tracking, initialize a new project for ghs, create .ghs/features.json and .ghs/progress.md. Trigger on: 'init project', 'setup tracking', 'new project tracking', 'initialize harness', starting a new managed project. Also use when user mentions wanting to track features, sprints, or multi-session work for the first time."
+description: "Initialize ghs project tracking by creating .ghs/features.json and .ghs/progress.md. Use when setting up a project for ghs for the first time, or when other ghs skills fail because .ghs/ doesn't exist."
 ---
 
 # Initialize Project Tracking

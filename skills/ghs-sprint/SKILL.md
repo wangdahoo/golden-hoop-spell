@@ -1,6 +1,6 @@
 ---
 name: ghs:sprint
-description: "Plan a sprint by breaking requirements into atomic, implementable features. USE WHEN user mentions sprint planning, feature breakdown, creating a sprint, planning an iteration, breaking down requirements, or multi-session project planning. Also trigger when user wants to update or modify planned features, add features to an existing sprint, or reorganize sprint priorities."
+description: "Plan a sprint by breaking requirements into atomic, implementable features with acceptance criteria and dependencies. Use when the user provides requirements or a feature list and wants to organize them into a structured sprint plan. Also use to modify an existing sprint — add features, change priorities, or replan."
 ---
 
 # Sprint Planning

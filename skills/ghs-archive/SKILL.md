@@ -1,6 +1,6 @@
 ---
 name: ghs:archive
-description: "Archive completed sprints to move them out of the active project state. USE WHEN user wants to archive a completed sprint, clean up finished work, or move done sprints to the archive. Trigger on: 'archive sprint', 'archive completed', 'clean up sprints', 'done with this sprint'. Only archives sprints with status 'completed'."
+description: "Archive completed sprints to clean up active project state. Only archives sprints with status 'completed'. For incomplete sprints, use /ghs:force-archive instead."
 ---
 
 # Archive Completed Sprints

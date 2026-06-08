@@ -1,6 +1,6 @@
 ---
 name: ghs:code
-description: "Start a coding session to implement the next feature. USE WHEN user wants to implement a feature, start coding, work on the next task, or continue development. Supports single-feature mode (default) and parallel mode (--parallel flag). Trigger on: 'implement next feature', 'start coding', 'code session', 'run coding agent', 'implement in parallel'. This is the primary development workflow skill for ghs managed projects."
+description: "Implement features from the current sprint plan. Supports single-feature mode (default, one feature per session) and parallel mode (--parallel for independent features). This is the primary development workflow for ghs-managed projects."
 argument-hint: "[--parallel] [--max-parallel=N]"
 ---
 

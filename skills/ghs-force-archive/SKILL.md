@@ -1,6 +1,6 @@
 ---
 name: ghs:force-archive
-description: "Force archive ALL sprints regardless of their status, including incomplete ones. USE WHEN user wants to reset the project state, start fresh, force archive everything, or clear all sprint data. This is a destructive operation — always confirm with the user before proceeding. Trigger on: 'force archive', 'reset project', 'archive everything', 'clear all sprints', 'start over'."
+description: "Force archive ALL sprints regardless of status, including incomplete ones. Destructive — always confirms with the user first. For routine archiving of completed sprints, use /ghs:archive instead."
 ---
 
 # Force Archive All Sprints
