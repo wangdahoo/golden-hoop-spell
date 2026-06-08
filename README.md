@@ -1,5 +1,7 @@
 # Golden Hoop Spell
 
+> 想让那孙猴子听你的？那得会念紧箍咒才行。
+
 A Claude Code plugin providing a suite of skills for sprint-driven project management and code generation.
 
 ## Skills
