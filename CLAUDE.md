@@ -1,37 +1,28 @@
-# golden-hoop-spell
+# CLAUDE.md
 
-A Claude Code plugin with multiple skills.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Structure
+## Project Overview
 
-```
-golden-hoop-spell/
-├── .claude-plugin/
-│   └── plugin.json              # Plugin manifest (required)
-├── CLAUDE.md                    # Project documentation (this file)
-├── shared/                      # Shared resources across skills
-│   ├── scripts/                 # Python utility scripts
-│   ├── references/              # Detailed workflow docs
-│   └── assets/                  # Templates (features.json, progress.md)
-├── skills/                      # All skills live here
-│   ├── ghs-init/                # /ghs:init — Initialize project tracking
-│   ├── ghs-sprint/              # /ghs:sprint — Sprint planning & feature breakdown
-│   ├── ghs-code/                # /ghs:code — Feature implementation (single/parallel)
-│   ├── ghs-status/              # /ghs:status — Show project status
-│   ├── ghs-archive/             # /ghs:archive — Archive completed sprints
-│   ├── ghs-force-archive/       # /ghs:force-archive — Force archive all sprints
-│   └── <skill-name>/            # Each skill is a directory with SKILL.md
-└── .gitignore
+Golden Hoop Spell is a Claude Code plugin providing sprint-driven project management skills. Skills manage a project's lifecycle from initialization through sprint planning, code implementation, and archival. A new `ghs:plan` skill generates technical plans via an iterative design-and-review loop.
+
+## Architecture
+
+Each skill is a self-contained directory under `skills/` with a `SKILL.md` that defines behavior. Skills delegate deterministic operations to Python scripts in `shared/scripts/` and reference detailed workflows in `shared/references/`. All tracking state lives in the target project's `.ghs/` directory (gitignored), using `features.json` for sprint/feature tracking and `progress.md` for session logs.
+
+The typical skill workflow: resolve project directory via `resolve_project_dir.py` → read `.ghs/` state → perform task → update `.ghs/` state.
+
+`ghs:plan` uses a three-role architecture: a dispatcher (main conversation) orchestrates a plan designer (Plan subagent) and a plan reviewer (general-purpose subagent) through up to 5 review-revise rounds, communicating via files under `.ghs/plans/`.
 
 ## Conventions
 
-- Skill names use `ghs:` prefix (e.g., `ghs:init`, `ghs:sprint`)
-- Skill directories use kebab-case (e.g., `ghs-init/`, `ghs-sprint/`)
-- Each skill has its own directory under `skills/`
-- Shared scripts, references, and assets live in `shared/`
+- Skill names use `ghs:` prefix; directories use kebab-case (e.g., `ghs-init/`)
 - Skills reference shared resources via `${CLAUDE_PLUGIN_ROOT}/shared/`
+- Feature IDs follow `s{N}-feat-{NNN}` format
+- Commit messages use conventional format: `<type>(<scope>): <description>`
+- Each session logs to `.ghs/progress.md` at the top of the sessions section
 
 ## Critical Rules
 
 1. When running eval loops with `/skill-creator`, use the `ghs-workspace` directory as the working directory.
-2. Always respond in Chinese.
+2. Use Chinese for all user-facing conversation in the main session. Write all SKILL.md files, reference docs, and other LLM-facing content in English.
