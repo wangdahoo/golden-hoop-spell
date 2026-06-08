@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Archive completed sprint files to .agent-harness/archived directory."""
+"""Archive completed sprint files to .ghs/archived directory."""
 
 import argparse
 import json
@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 
-ARCHIVED_DIR = ".agent-harness/archived"
+ARCHIVED_DIR = ".ghs/archived"
 
 
 def get_all_sprints(features_data: Dict) -> List[Dict]:
@@ -242,7 +242,7 @@ def archive_completed_sprints(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Archive completed sprint files to .agent-harness/archived"
+        description="Archive completed sprint files to .ghs/archived"
     )
     parser.add_argument(
         "--project-dir",

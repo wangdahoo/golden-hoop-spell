@@ -1,11 +1,11 @@
 ---
 name: ghs:status
-description: "Show current project status including sprint progress, feature completion stats, and recent sessions. USE WHEN user wants to check project status, see what's done, see what's next, review progress, or understand the current state of their agent-harness managed project. Trigger on: 'show status', 'project status', 'what's left', 'how's it going', 'progress', 'what features are done', 'sprint status'."
+description: "Show current project status including sprint progress, feature completion stats, and recent sessions. USE WHEN user wants to check project status, see what's done, see what's next, review progress, or understand the current state of their ghs managed project. Trigger on: 'show status', 'project status', 'what's left', 'how's it going', 'progress', 'what features are done', 'sprint status'."
 ---
 
 # Project Status
 
-Display the current state of the agent-harness managed project: active sprint, feature completion, and recent sessions.
+Display the current state of the ghs managed project: active sprint, feature completion, and recent sessions.
 
 ## Usage
 

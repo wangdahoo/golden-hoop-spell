@@ -5,7 +5,7 @@ description: "Archive completed sprints to move them out of the active project s
 
 # Archive Completed Sprints
 
-Move completed sprints from the active `features.json` to `.agent-harness/archived/`, keeping the project state clean for the next sprint.
+Move completed sprints from the active `features.json` to `.ghs/archived/`, keeping the project state clean for the next sprint.
 
 ## Prerequisites
 
@@ -37,7 +37,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --project-dir "<P
 ```
 
 This will:
-- Create `.agent-harness/archived/<sprint-id>_<name>_<timestamp>/`
+- Create `.ghs/archived/<sprint-id>_<name>_<timestamp>/`
 - Save sprint data and related sessions to the archive folder
 - Remove the archived sprint from `features.json`
 - Reset `progress.md` to the default template
@@ -51,8 +51,8 @@ git commit -m "chore: archive completed sprint"
 
 ## What Gets Archived
 
-- Sprint feature data → `.agent-harness/archived/<folder>/features.json`
-- Related progress sessions → `.agent-harness/archived/<folder>/progress.md`
+- Sprint feature data → `.ghs/archived/<folder>/features.json`
+- Related progress sessions → `.ghs/archived/<folder>/progress.md`
 - Sprint is removed from the root `features.json`
 - `progress.md` is reset to the default template
 

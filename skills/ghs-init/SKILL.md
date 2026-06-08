@@ -1,11 +1,11 @@
 ---
 name: ghs:init
-description: "Initialize agent-harness project tracking files. USE WHEN user wants to set up project tracking, initialize a new project for agent-harness, create features.json and progress.md. Trigger on: 'init project', 'setup tracking', 'new project tracking', 'initialize harness', starting a new managed project. Also use when user mentions wanting to track features, sprints, or multi-session work for the first time."
+description: "Initialize ghs project tracking files. USE WHEN user wants to set up project tracking, initialize a new project for ghs, create features.json and progress.md. Trigger on: 'init project', 'setup tracking', 'new project tracking', 'initialize harness', starting a new managed project. Also use when user mentions wanting to track features, sprints, or multi-session work for the first time."
 ---
 
 # Initialize Project Tracking
 
-Set up the project with `features.json` and `progress.md` so the agent-harness system can track sprints, features, and progress across sessions.
+Set up the project with `features.json` and `progress.md` so the ghs system can track sprints, features, and progress across sessions.
 
 ## Setup
 
@@ -18,7 +18,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/init_project.py "<PROJECT_NAME>" --
 The script creates:
 - **features.json** — Sprint and feature tracking (from template at `${CLAUDE_PLUGIN_ROOT}/shared/assets/features.json`)
 - **progress.md** — Session log (from template at `${CLAUDE_PLUGIN_ROOT}/shared/assets/progress.md`)
-- Updates **.gitignore** with `.agent-harness`
+- Updates **.gitignore** with `.ghs`
 
 ## After Initialization
 
@@ -37,7 +37,7 @@ The script creates:
 
 ## Project Directory Resolution
 
-All agent-harness commands operate on the current project directory. If the working directory might not be the project root, resolve it first:
+All ghs commands operate on the current project directory. If the working directory might not be the project root, resolve it first:
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py

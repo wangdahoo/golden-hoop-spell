@@ -128,7 +128,7 @@ Perform these checks in order before starting orchestration:
 
    If no uncompleted sprint exists, exit with:
    ```
-   No uncompleted sprint found. Run /agent-harness sprint first to plan a sprint.
+   No uncompleted sprint found. Run /ghs:sprint first to plan a sprint.
    ```
 
 3. **Review Recent Context** — Read `progress.md` for recent work, blockers, and project state.
@@ -319,7 +319,7 @@ For each completed subagent:
 
 ### Next Steps
 - Review and fix blocked features manually
-- Run /agent-harness code to address remaining issues
+- Run /ghs:code to address remaining issues
 ```
 
 3. **Final Commit**

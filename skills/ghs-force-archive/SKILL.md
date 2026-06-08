@@ -32,7 +32,7 @@ The following sprints will be archived:
   - Sprint 1: Authentication (s1) [in_progress] - 3/6 features completed
   - Sprint 2: Dashboard (s2) [planning] - 0/4 features completed
 
-This action will move all sprint data to .agent-harness/archived/ and reset progress.md.
+This action will move all sprint data to .ghs/archived/ and reset progress.md.
 Are you sure you want to proceed?
 ```
 
@@ -46,7 +46,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --force --project
 ```
 
 This will:
-- Archive all sprints to `.agent-harness/archived/`
+- Archive all sprints to `.ghs/archived/`
 - Remove all sprints from `features.json` (project info is preserved)
 - Reset `progress.md` to the default template
 
@@ -61,4 +61,4 @@ git commit -m "chore: force archive all sprints"
 
 The project still has `features.json` and `progress.md` — just with no active sprints. The user can run `/ghs:sprint` to plan a new sprint from scratch.
 
-Archived data is preserved in `.agent-harness/archived/` for reference.
+Archived data is preserved in `.ghs/archived/` for reference.

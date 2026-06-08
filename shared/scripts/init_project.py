@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Initialize agent-harness tracking files for a project."""
+"""Initialize ghs tracking files for a project."""
 
 import argparse
 import json
@@ -32,9 +32,9 @@ def create_features_json(project_name: str, project_description: str, output_dir
 
 
 def ensure_gitignore(output_dir: Path):
-    """Add .agent-harness to .gitignore if not already present."""
+    """Add .ghs to .gitignore if not already present."""
     gitignore_path = output_dir / ".gitignore"
-    entry = ".agent-harness"
+    entry = ".ghs"
 
     if gitignore_path.exists():
         with open(gitignore_path, "r", encoding="utf-8") as f:
@@ -67,7 +67,7 @@ def create_progress_md(output_dir: Path):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Initialize agent-harness tracking files"
+        description="Initialize ghs tracking files"
     )
     parser.add_argument("project_name", help="Name of the project")
     parser.add_argument(
@@ -93,7 +93,7 @@ def main():
 
     project_description = args.description or f"{args.project_name} project"
 
-    print(f"=== Initializing Agent Harness ===")
+    print(f"=== Initializing GHS ===")
     print(f"Project: {args.project_name}")
     print(f"Output: {output_dir}")
     print()
@@ -109,9 +109,9 @@ def main():
 
         gitignore_file, updated = ensure_gitignore(output_dir)
         if updated:
-            print(f"✓ Updated {gitignore_file.name} (added .agent-harness)")
+            print(f"✓ Updated {gitignore_file.name} (added .ghs)")
         else:
-            print(f"  {gitignore_file.name} already contains .agent-harness")
+            print(f"  {gitignore_file.name} already contains .ghs")
 
         print()
         print("Next: Run Sprint Agent to define features.")

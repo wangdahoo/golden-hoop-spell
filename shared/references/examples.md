@@ -273,7 +273,7 @@ After archiving completed sprint:
 project-root/
 ├── features.json          (sprint-001 removed, only sprint-002 remains)
 ├── progress.md            (updated with archive entry)
-├── .agent-harness/
+├── .ghs/
 │   └── archived/
 │       └── sprint-001_authentication_sprint_20240120_143000/
 │           ├── features.json    (complete sprint-001 data)

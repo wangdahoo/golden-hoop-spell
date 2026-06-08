@@ -18,13 +18,13 @@ import sys
 from pathlib import Path
 
 MARKER_FILES = ["features.json", "progress.md"]
-WRONG_DIRS = [".agent-harness", "node_modules", ".git", "__pycache__"]
+WRONG_DIRS = [".ghs", "node_modules", ".git", "__pycache__"]
 
 
 def find_project_dir(start_dir: Path) -> "Path | None":
     """Walk up from start_dir to find the directory containing marker files.
 
-    Skips known non-project directories like .agent-harness and node_modules.
+    Skips known non-project directories like .ghs and node_modules.
     Returns None if no marker files are found in any parent directory.
     """
     current = start_dir.resolve()
@@ -51,7 +51,7 @@ def find_project_dir(start_dir: Path) -> "Path | None":
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Resolve the agent-harness project directory"
+        description="Resolve the ghs project directory"
     )
     parser.add_argument(
         "--start-dir",
@@ -67,7 +67,7 @@ def main():
     if project_dir is None:
         print(
             "Error: No project directory found. No features.json or progress.md in any parent directory. "
-            "Run /agent-harness init to create a new project.",
+            "Run /ghs:init to create a new project.",
             file=sys.stderr,
         )
         return 1

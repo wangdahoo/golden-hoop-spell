@@ -20,7 +20,7 @@ import zipfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent
-SKILL_NAME = "agent-harness"
+SKILL_NAME = "ghs"
 
 
 def run_cmd(cmd, cwd=None, check=True):
@@ -169,7 +169,7 @@ def create_release(version, skill_file, dry_run=False):
         f'--notes "Release {tag} of {SKILL_NAME} skill"'
     )
     run_cmd(release_cmd)
-    print(f"Released: https://github.com/wangdahoo/agent-harness/releases/tag/{tag}")
+    print(f"Released: https://github.com/wangdahoo/golden-hoop-spell/releases/tag/{tag}")
 
 
 def main():
