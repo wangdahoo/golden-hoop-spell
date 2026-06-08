@@ -8,7 +8,6 @@ A Claude Code plugin with multiple skills.
 golden-hoop-spell/
 ├── .claude-plugin/
 │   └── plugin.json              # Plugin manifest (required)
-├── package.json                 # npm package metadata
 ├── CLAUDE.md                    # Project documentation (this file)
 ├── shared/                      # Shared resources across skills
 │   ├── scripts/                 # Python utility scripts
@@ -23,34 +22,6 @@ golden-hoop-spell/
 │   ├── ghs-force-archive/       # /ghs:force-archive — Force archive all sprints
 │   └── <skill-name>/            # Each skill is a directory with SKILL.md
 └── .gitignore
-```
-
-## Installation
-
-```bash
-claude plugin install https://github.com/wangdahoo/golden-hoop-spell
-```
-
-Or local development:
-```bash
-claude --plugin-dir /path/to/golden-hoop-spell
-```
-
-## Adding a New Skill
-
-1. Create a directory under `skills/` with the skill name (kebab-case)
-2. Add a `SKILL.md` file with YAML frontmatter:
-
-```yaml
----
-name: skill-name
-description: "What this skill does"
----
-
-# Skill Title
-
-Instructions for the skill...
-```
 
 ## Conventions
 
@@ -59,3 +30,8 @@ Instructions for the skill...
 - Each skill has its own directory under `skills/`
 - Shared scripts, references, and assets live in `shared/`
 - Skills reference shared resources via `${CLAUDE_PLUGIN_ROOT}/shared/`
+
+## Critical Rules
+
+1. When running eval loops with `/skill-creator`, use the `ghs-workspace` directory as the working directory.
+2. Always respond in Chinese.
