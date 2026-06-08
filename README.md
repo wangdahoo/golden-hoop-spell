@@ -2,7 +2,9 @@
 
 > 想让那孙猴子听你的？那得会念紧箍咒才行。
 
-A Claude Code plugin providing a suite of skills for sprint-driven project management and code generation.
+A skill suite that keeps Claude on a leash — structured sprints, iterative planning, and disciplined code delivery.
+
+Skills form a pipeline: `init` → `plan` → `sprint` → `code` → `status`/`archive`.
 
 ## Skills
 

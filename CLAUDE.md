@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Golden Hoop Spell is a Claude Code plugin providing sprint-driven project management skills. Skills manage a project's lifecycle from initialization through sprint planning, code implementation, and archival. A new `ghs:plan` skill generates technical plans via an iterative design-and-review loop.
+A skill suite that keeps Claude on a leash — structured sprints, iterative planning, and disciplined code delivery. Skills form a pipeline: `init` sets up tracking, `plan` generates technical designs through iterative review, `sprint` breaks work into features, `code` implements them, and `status`/`archive` track and close out progress.
 
 ## Architecture
 
