@@ -49,8 +49,8 @@ def main():
     args = parser.parse_args()
     project_dir = Path(args.project_dir).resolve()
 
-    features_path = project_dir / "features.json"
-    progress_path = project_dir / "progress.md"
+    features_path = project_dir / ".ghs" / "features.json"
+    progress_path = project_dir / ".ghs" / "progress.md"
 
     if not features_path.exists():
         print("❌ features.json not found. Run init-project.py first.")

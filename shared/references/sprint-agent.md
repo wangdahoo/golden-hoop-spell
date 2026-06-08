@@ -38,8 +38,8 @@ Break down requirements into categories:
 
 Context sources:
 - User's high-level requirements
-- Existing `features.json`
-- Previous sprint learnings from `progress.md`
+- Existing `.ghs/features.json`
+- Previous sprint learnings from `.ghs/progress.md`
 
 #### Step 2: Create Atomic Features
 
@@ -184,7 +184,7 @@ See [examples.md](examples.md) for complete examples.
 
 ### File Management
 
-Only modify `features.json` and `progress.md`. Do NOT create additional files like planning summaries, architecture docs, or data model documents. All planning information goes into these two files.
+Only modify `.ghs/features.json` and `.ghs/progress.md`. Do NOT create additional files like planning summaries, architecture docs, or data model documents. All planning information goes into these two files.
 
 Before writing, resolve the project directory with `python3 scripts/resolve_project_dir.py` and use the returned absolute path for all file reads/writes. This prevents files from being written to the wrong location (e.g., inside `.ghs/`) if the working directory shifts during the session.
 
@@ -249,11 +249,7 @@ Display this summary in the terminal and ask the user to confirm before committi
 Run the Coding Agent with the first pending feature: [first-feature-id]
 ```
 
-After displaying the summary, ask the user to confirm. Once confirmed, commit:
-```bash
-git add features.json progress.md
-git commit -m "chore: sprint planning - <sprint-name>"
-```
+After displaying the summary, ask the user to confirm. No git commit needed — tracking files live inside `.ghs/` (gitignored).
 
 ## Critical Rules
 

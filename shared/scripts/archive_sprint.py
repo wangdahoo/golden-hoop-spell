@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Tuple
 
 
 ARCHIVED_DIR = ".ghs/archived"
+GHS_DIR = ".ghs"
 
 
 def get_all_sprints(features_data: Dict) -> List[Dict]:
@@ -70,7 +71,7 @@ def archive_sprint_files(
     with open(archive_features, "w", encoding="utf-8") as f:
         json.dump(archived_sprint_data, f, indent=2)
 
-    progress_path = project_dir / "progress.md"
+    progress_path = project_dir / GHS_DIR / "progress.md"
     if progress_path.exists():
         sessions = extract_sprint_sessions(progress_path, sprint_id)
         if sessions:
@@ -165,8 +166,8 @@ def archive_completed_sprints(
     Returns:
         List of archived sprint info
     """
-    features_path = project_dir / "features.json"
-    progress_path = project_dir / "progress.md"
+    features_path = project_dir / GHS_DIR / "features.json"
+    progress_path = project_dir / GHS_DIR / "progress.md"
 
     if not features_path.exists():
         print("Error: features.json not found")
@@ -276,7 +277,7 @@ def main():
     print(f"Project directory: {project_dir}\n")
 
     if args.list:
-        features_path = project_dir / "features.json"
+        features_path = project_dir / GHS_DIR / "features.json"
         if not features_path.exists():
             print("Error: features.json not found")
             return 1

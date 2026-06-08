@@ -9,7 +9,7 @@ Break down requirements into atomic features with acceptance criteria, dependenc
 
 ## Prerequisites
 
-The project must be initialized (have `features.json` and `progress.md`). If not, tell the user to run `/ghs:init` first.
+The project must be initialized (have `.ghs/features.json` and `.ghs/progress.md`). If not, tell the user to run `/ghs:init` first.
 
 Resolve the project directory:
 ```bash
@@ -36,8 +36,8 @@ Break requirements into categories:
 
 Context sources:
 - User's requirements (from the command arguments or conversation)
-- Existing `features.json`
-- Previous sprint learnings from `progress.md`
+- Existing `.ghs/features.json`
+- Previous sprint learnings from `.ghs/progress.md`
 - Current codebase state
 
 ### Step 3: Create Atomic Features
@@ -83,11 +83,11 @@ If a feature would take more than 4 hours, break it down further.
 
 ### Step 6: Update Files
 
-**Only modify `features.json` and `progress.md`** — do NOT create extra planning documents.
+**Only modify `.ghs/features.json` and `.ghs/progress.md`** — do NOT create extra planning documents.
 
-Update `features.json` with the new sprint and its features. Set sprint status to `in_progress`.
+Update `.ghs/features.json` with the new sprint and its features. Set sprint status to `in_progress`.
 
-Add a planning entry at the **top** of the sessions section in `progress.md`:
+Add a planning entry at the **top** of the sessions section in `.ghs/progress.md`:
 
 ```markdown
 ## Sprint Planning - YYYY-MM-DD
@@ -141,11 +141,7 @@ Show this summary to the user and ask for confirmation before committing:
 Run /ghs:code to start implementing the first feature: [first-feature-id]
 ```
 
-After user confirms:
-```bash
-git add features.json progress.md
-git commit -m "chore: sprint planning - <sprint-name>"
-```
+After user confirms, the sprint is ready for development. No git commit needed — tracking files live inside `.ghs/` (gitignored).
 
 ## Reference
 

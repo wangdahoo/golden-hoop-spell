@@ -32,7 +32,7 @@ The following sprints will be archived:
   - Sprint 1: Authentication (s1) [in_progress] - 3/6 features completed
   - Sprint 2: Dashboard (s2) [planning] - 0/4 features completed
 
-This action will move all sprint data to .ghs/archived/ and reset progress.md.
+This action will move all sprint data to .ghs/archived/ and reset .ghs/progress.md.
 Are you sure you want to proceed?
 ```
 
@@ -47,18 +47,13 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --force --project
 
 This will:
 - Archive all sprints to `.ghs/archived/`
-- Remove all sprints from `features.json` (project info is preserved)
-- Reset `progress.md` to the default template
+- Remove all sprints from `.ghs/features.json` (project info is preserved)
+- Reset `.ghs/progress.md` to the default template
 
-### Step 4: Commit
-
-```bash
-git add -A
-git commit -m "chore: force archive all sprints"
-```
+No git commit needed — tracking files live inside `.ghs/` (gitignored).
 
 ## After Force Archive
 
-The project still has `features.json` and `progress.md` — just with no active sprints. The user can run `/ghs:sprint` to plan a new sprint from scratch.
+The project still has `.ghs/features.json` and `.ghs/progress.md` — just with no active sprints. The user can run `/ghs:sprint` to plan a new sprint from scratch.
 
 Archived data is preserved in `.ghs/archived/` for reference.

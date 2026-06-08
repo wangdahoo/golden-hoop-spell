@@ -22,7 +22,8 @@ def create_features_json(project_name: str, project_description: str, output_dir
         features_data["project"]["created_at"] = datetime.now().strftime("%Y-%m-%d")
         features_data["metadata"]["last_updated"] = datetime.now().strftime("%Y-%m-%d")
 
-        output_file = output_dir / "features.json"
+        output_file = output_dir / ".ghs" / "features.json"
+        output_file.parent.mkdir(parents=True, exist_ok=True)
         with open(output_file, "w", encoding="utf-8") as f:
             json.dump(features_data, f, indent=2)
 
@@ -58,7 +59,9 @@ def create_progress_md(output_dir: Path):
     template_path = Path(__file__).parent.parent / "assets" / "progress.md"
 
     if template_path.exists():
-        output_file = output_dir / "progress.md"
+        ghs_dir = output_dir / ".ghs"
+        ghs_dir.mkdir(parents=True, exist_ok=True)
+        output_file = ghs_dir / "progress.md"
         shutil.copy(template_path, output_file)
         return output_file
     else:

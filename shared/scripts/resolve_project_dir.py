@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Resolve the project directory by searching for features.json or progress.md.
+"""Resolve the project directory by searching for .ghs/features.json or .ghs/progress.md.
 
 Walks up from the given start directory (or cwd) to find the directory containing
-project tracking files. This ensures agents always write to the correct location
+the .ghs project tracking folder. This ensures agents always write to the correct location
 regardless of their current working directory.
 
 Usage:
@@ -17,33 +17,31 @@ import argparse
 import sys
 from pathlib import Path
 
+GHS_DIR = ".ghs"
 MARKER_FILES = ["features.json", "progress.md"]
-WRONG_DIRS = [".ghs", "node_modules", ".git", "__pycache__"]
 
 
 def find_project_dir(start_dir: Path) -> "Path | None":
-    """Walk up from start_dir to find the directory containing marker files.
+    """Walk up from start_dir to find the directory containing .ghs/ with marker files.
 
-    Skips known non-project directories like .ghs and node_modules.
     Returns None if no marker files are found in any parent directory.
     """
     current = start_dir.resolve()
 
     while current != current.parent:
-        if current.name in WRONG_DIRS:
-            current = current.parent
-            continue
-
-        for marker in MARKER_FILES:
-            if (current / marker).exists():
-                return current
+        ghs = current / GHS_DIR
+        if ghs.is_dir():
+            for marker in MARKER_FILES:
+                if (ghs / marker).exists():
+                    return current
 
         current = current.parent
 
     # Check root directory too
-    if current.name not in WRONG_DIRS:
+    ghs = current / GHS_DIR
+    if ghs.is_dir():
         for marker in MARKER_FILES:
-            if (current / marker).exists():
+            if (ghs / marker).exists():
                 return current
 
     return None
@@ -66,7 +64,7 @@ def main():
 
     if project_dir is None:
         print(
-            "Error: No project directory found. No features.json or progress.md in any parent directory. "
+            "Error: No project directory found. No .ghs/features.json or .ghs/progress.md in any parent directory. "
             "Run /ghs:init to create a new project.",
             file=sys.stderr,
         )

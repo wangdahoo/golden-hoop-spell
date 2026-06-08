@@ -110,7 +110,7 @@ def main():
     args = parser.parse_args()
     project_dir = Path(args.project_dir).resolve()
 
-    features_path = project_dir / "features.json"
+    features_path = project_dir / ".ghs" / "features.json"
 
     print("=== Validating features.json ===\n")
 

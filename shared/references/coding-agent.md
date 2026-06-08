@@ -18,16 +18,16 @@
    ```bash
    python3 scripts/resolve_project_dir.py
    ```
-   Store the output as the absolute project directory. Use it for all reads/writes of `features.json` and `progress.md`.
+   Store the output as the absolute project directory. Use it for all reads/writes of `.ghs/features.json` and `.ghs/progress.md`.
 
 2. **Review Recent Work**
    ```bash
    git log --oneline -10
    ```
-   Read `progress.md` to understand previous sessions. This step is mandatory — it provides the context from prior sessions that enables continuity across context windows.
+   Read `.ghs/progress.md` to understand previous sessions. This step is mandatory — it provides the context from prior sessions that enables continuity across context windows.
 
 3. **Review Feature Status**
-   Read `features.json` to see:
+   Read `.ghs/features.json` to see:
    - Current sprint status
    - Completed features
    - In-progress features
@@ -43,15 +43,14 @@
 
 **Always perform:**
 
-1. Update `progress.md` with session summary
-2. Update `features.json` if feature complete
+1. Update `.ghs/progress.md` with session summary
+2. Update `.ghs/features.json` if feature complete
 3. Ensure no lint/build errors
-4. Commit all changes — this is critical for maintaining project state across sessions:
+4. Commit implementation changes:
    ```bash
-   git add features.json progress.md [implementation files]
+   git add [implementation files]
    git commit -m "feat(<scope>): <description>"
    ```
-   Never skip the commit step. Each session must end with a clean commit so the next session can start fresh.
 
 ## Implementation Process
 
@@ -124,14 +123,14 @@ Perform these checks in order before starting orchestration:
    Store the output as the absolute project directory.
 
 2. **Check for Uncompleted Sprint**
-   Read `features.json` and look for a sprint with status `in_progress` or `planning` that has features with status `pending` or `blocked`.
+   Read `.ghs/features.json` and look for a sprint with status `in_progress` or `planning` that has features with status `pending` or `blocked`.
 
    If no uncompleted sprint exists, exit with:
    ```
    No uncompleted sprint found. Run /ghs:sprint first to plan a sprint.
    ```
 
-3. **Review Recent Context** — Read `progress.md` for recent work, blockers, and project state.
+3. **Review Recent Context** — Read `.ghs/progress.md` for recent work, blockers, and project state.
 
 4. **Verify Clean Working Tree**
    ```bash
@@ -244,14 +243,14 @@ This is an isolated task. You MUST:
 - **Files to Modify**: <files_affected>
 
 ## Your Task
-1. Read features.json and progress.md to understand project context
+1. Read .ghs/features.json and .ghs/progress.md to understand project context
 2. Implement the feature following the coding-agent.md guidelines
 3. Test all acceptance criteria
 4. Run lint/build to verify no breakage
 5. Commit your changes with message: feat(<scope>): <brief description> (Feature: <feature_id>)
 
 ## Critical Rules
-- Do NOT modify features.json or progress.md - the orchestrator will update these
+- Do NOT modify .ghs/features.json or .ghs/progress.md - the orchestrator will update these
 - Focus ONLY on this feature - do not modify unrelated code
 - Ensure the codebase remains in a working state
 - Signal completion by stating "FEATURE COMPLETE: <feature_id>" at the end
@@ -295,8 +294,8 @@ For each completed subagent:
 
 ### State Update Phase
 
-1. **Update features.json** — Completed features get `status: "completed"`, blocked get `status: "blocked"` with `blocked_reason`
-2. **Write progress.md entry** — Add parallel orchestration summary at the top of sessions section:
+1. **Update .ghs/features.json** — Completed features get `status: "completed"`, blocked get `status: "blocked"` with `blocked_reason`
+2. **Write .ghs/progress.md entry** — Add parallel orchestration summary at the top of sessions section:
 
 ```markdown
 ## Parallel Orchestration - YYYY-MM-DD
@@ -322,15 +321,15 @@ For each completed subagent:
 - Run /ghs:code to address remaining issues
 ```
 
-3. **Final Commit**
+3. **Final Commit** (implementation files only)
    ```bash
-   git add features.json progress.md
+   git add [implementation files]
    git commit -m "chore: parallel orchestration complete - 6/8 features completed"
    ```
 
 ### Parallel Mode Error Handling
 
-- **Subagent Failure**: Record failure, continue other subagents, document in progress.md
+- **Subagent Failure**: Record failure, continue other subagents, document in .ghs/progress.md
 - **Merge Conflicts**: Detect via build/lint failures, isolate conflicting features, revert if needed
 - **Catastrophic Failure**: Stop orchestration, run full test suite, rollback if needed, recommend single-feature mode
 
@@ -339,7 +338,7 @@ For each completed subagent:
 1. **Continue on Failure** — Blocked features don't stop other features
 2. **Respect File Conflicts** — Features modifying same files run sequentially
 3. **Max 5 Concurrent Subagents** — Never exceed this limit
-4. **Orchestrator Updates State** — Subagents don't modify features.json or progress.md
+4. **Orchestrator Updates State** — Subagents don't modify .ghs/features.json or .ghs/progress.md
 5. **Clean State Required** — Only run parallel mode on clean working tree
 6. **Context Isolation** — Every subagent MUST receive CONTEXT RESET header
 
@@ -448,8 +447,8 @@ See [examples.md](examples.md) for complete examples.
 ☐ Build succeeds
 ☐ Manual testing completed
 ☐ Code committed with descriptive message
-☐ progress.md updated
-☐ features.json status updated
+☐ .ghs/progress.md updated
+☐ .ghs/features.json status updated
 ☐ No TODO comments left
 ☐ No debug code remaining
 ```
@@ -460,8 +459,8 @@ See [examples.md](examples.md) for complete examples.
 ☐ Feature complete (or clearly documented why not)
 ☐ No lint or build errors
 ☐ Code committed
-☐ progress.md updated
-☐ features.json updated (if feature complete)
+☐ .ghs/progress.md updated
+☐ .ghs/features.json updated (if feature complete)
 ☐ Application in working state
 ```
 
@@ -471,7 +470,7 @@ See [examples.md](examples.md) for complete examples.
 2. **Always Leave Working Code** - Never leave codebase broken
 3. **Follow Acceptance Criteria** - Implement exactly what's specified
 4. **Follow Project Conventions** - See project's AGENTS.md for code style
-5. **Don't Modify features.json Lightly** - Only change feature status
+5. **Don't Modify .ghs/features.json Lightly** - Only change feature status
 6. **Commit Frequently** - Enable rollback
 
 ## Red Flags - Stop and Fix

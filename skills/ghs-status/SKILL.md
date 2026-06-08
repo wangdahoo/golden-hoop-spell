@@ -26,10 +26,10 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/status.py --project-dir "<PROJECT_D
 - **Feature breakdown**: completed / in-progress / pending / blocked counts
 - **Current work**: which feature is in-progress
 - **Next up**: which pending feature to implement next
-- **Recent sessions**: last 3 entries from progress.md
+- **Recent sessions**: last 3 entries from .ghs/progress.md
 
 ## If No Project Found
 
-If `features.json` doesn't exist, tell the user to run `/ghs:init` to set up project tracking.
+If `.ghs/features.json` doesn't exist, tell the user to run `/ghs:init` to set up project tracking.
 
 If there are no sprints, suggest running `/ghs:sprint` to plan the first sprint.

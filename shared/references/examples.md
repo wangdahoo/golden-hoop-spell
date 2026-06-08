@@ -271,9 +271,9 @@ After archiving completed sprint:
 
 ```
 project-root/
-├── features.json          (sprint-001 removed, only sprint-002 remains)
-├── progress.md            (updated with archive entry)
 ├── .ghs/
+│   ├── features.json          (sprint-001 removed, only sprint-002 remains)
+│   ├── progress.md            (updated with archive entry)
 │   └── archived/
 │       └── sprint-001_authentication_sprint_20240120_143000/
 │           ├── features.json    (complete sprint-001 data)
@@ -288,7 +288,7 @@ project-root/
 2. Archive completed sprints (if any)
 3. Analyze user requirements
 4. Create features following the authentication sprint example
-5. Update `features.json` and `progress.md`
+5. Update `.ghs/features.json` and `.ghs/progress.md`
 
 ### Coding Agent Workflow
 
@@ -296,4 +296,4 @@ project-root/
 2. Select ONE feature from current sprint
 3. Implement following the coding session example
 4. Test thoroughly using checklist
-5. Update `progress.md` and `features.json`
+5. Update `.ghs/progress.md` and `.ghs/features.json`

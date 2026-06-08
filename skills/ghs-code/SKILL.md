@@ -26,9 +26,9 @@ The project must have an active sprint with pending features. If not, tell the u
    ```bash
    git log --oneline -10
    ```
-   Read `progress.md` to understand previous sessions.
+   Read `.ghs/progress.md` to understand previous sessions.
 
-3. **Review feature status**: Read `features.json` to see current sprint, completed/in-progress/pending features, and dependencies.
+3. **Review feature status**: Read `.ghs/features.json` to see current sprint, completed/in-progress/pending features, and dependencies.
 
 4. **Verify project state**: Run lint and build commands. If broken, **fix existing issues before starting new work**.
 
@@ -70,7 +70,7 @@ Check all acceptance criteria:
 
 ### Step 5: End of Session
 
-1. Update `progress.md` with session summary at the **top** of the sessions section:
+1. Update `.ghs/progress.md` with session summary at the **top** of the sessions section:
 
 ```markdown
 ## Session N - YYYY-MM-DD
@@ -99,13 +99,13 @@ Check all acceptance criteria:
 - [Recommended next feature]
 ```
 
-2. Update the feature status in `features.json` (only change `status` field):
+2. Update the feature status in `.ghs/features.json` (only change `status` field):
    - `completed` — all acceptance criteria met, tests pass
    - `blocked` — cannot proceed, document reason in `blocked_reason`
 
-3. Commit all changes:
+3. Commit implementation changes:
    ```bash
-   git add features.json progress.md [implementation files]
+   git add [implementation files]
    git commit -m "feat(<scope>): <description>"
    ```
 
@@ -153,14 +153,14 @@ This is an isolated task. You MUST:
 - **Files to Modify**: <files_affected>
 
 ## Your Task
-1. Read features.json and progress.md to understand project context
+1. Read .ghs/features.json and .ghs/progress.md to understand project context
 2. Implement the feature
 3. Test all acceptance criteria
 4. Run lint/build to verify no breakage
 5. Commit your changes with message: feat(<scope>): <brief description> (Feature: <feature_id>)
 
 ## Critical Rules
-- Do NOT modify features.json or progress.md - the orchestrator will update these
+- Do NOT modify .ghs/features.json or .ghs/progress.md - the orchestrator will update these
 - Focus ONLY on this feature
 - Ensure the codebase remains in a working state
 - Signal completion by stating "FEATURE COMPLETE: <feature_id>" at the end
@@ -186,17 +186,17 @@ For each completed subagent:
 
 ### State Update Phase
 
-1. Update `features.json` — completed features get `status: "completed"`, blocked get `status: "blocked"`
-2. Add parallel orchestration summary to top of `progress.md` sessions section
-3. Final commit:
+1. Update `.ghs/features.json` — completed features get `status: "completed"`, blocked get `status: "blocked"`
+2. Add parallel orchestration summary to top of `.ghs/progress.md` sessions section
+3. Final commit (implementation files only):
    ```bash
-   git add features.json progress.md
+   git add [implementation files]
    git commit -m "chore: parallel orchestration complete - N/M features completed"
    ```
 
 ### Parallel Error Handling
 
-- **Subagent failure**: Record failure, continue others, document in progress.md
+- **Subagent failure**: Record failure, continue others, document in .ghs/progress.md
 - **Merge conflicts**: Detect via build/lint failures, isolate, revert if needed
 - **Catastrophic failure**: Stop orchestration, run full tests, rollback if needed, recommend single-feature mode
 

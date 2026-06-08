@@ -5,7 +5,7 @@ description: "Archive completed sprints to move them out of the active project s
 
 # Archive Completed Sprints
 
-Move completed sprints from the active `features.json` to `.ghs/archived/`, keeping the project state clean for the next sprint.
+Move completed sprints from the active `.ghs/features.json` to `.ghs/archived/`, keeping the project state clean for the next sprint.
 
 ## Prerequisites
 
@@ -39,22 +39,17 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --project-dir "<P
 This will:
 - Create `.ghs/archived/<sprint-id>_<name>_<timestamp>/`
 - Save sprint data and related sessions to the archive folder
-- Remove the archived sprint from `features.json`
-- Reset `progress.md` to the default template
+- Remove the archived sprint from `.ghs/features.json`
+- Reset `.ghs/progress.md` to the default template
 
-### Step 4: Commit
-
-```bash
-git add -A
-git commit -m "chore: archive completed sprint"
-```
+No git commit needed — tracking files live inside `.ghs/` (gitignored).
 
 ## What Gets Archived
 
 - Sprint feature data → `.ghs/archived/<folder>/features.json`
 - Related progress sessions → `.ghs/archived/<folder>/progress.md`
-- Sprint is removed from the root `features.json`
-- `progress.md` is reset to the default template
+- Sprint is removed from `.ghs/features.json`
+- `.ghs/progress.md` is reset to the default template
 
 ## If No Completed Sprints
 
