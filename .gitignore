@@ -3,4 +3,5 @@ node_modules/
 *.log
 .env
 .env.*
-ghs-workspace/
+ghs-workspace/*
+!ghs-workspace/CLAUDE.md
