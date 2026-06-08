@@ -6,8 +6,8 @@
   "plugins": [
     {
       "name": "golden-hoop-spell",
-      "source": "github",
-      "repo": "wangdahoo/golden-hoop-spell"
+      "source": "./",
+      "description": "A Claude Code plugin for sprint-driven project management and code generation"
     }
   ]
 }
