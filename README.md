@@ -15,11 +15,19 @@ A Claude Code plugin providing a suite of skills for sprint-driven project manag
 
 ## Installation
 
+### 通过市场安装（推荐）
+
+添加市场并安装插件：
+
 ```bash
-claude plugin install https://github.com/wangdahoo/golden-hoop-spell
+# 添加市场
+/plugin marketplace add wangdahoo/golden-hoop-spell
+
+# 安装插件
+/plugin install golden-hoop-spell
 ```
 
-Local development:
+### 本地开发
 
 ```bash
 claude --plugin-dir /path/to/golden-hoop-spell

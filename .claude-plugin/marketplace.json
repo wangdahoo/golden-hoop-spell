@@ -1,0 +1,13 @@
+{
+  "name": "golden-hoop-spell",
+  "owner": {
+    "name": "wangdahoo"
+  },
+  "plugins": [
+    {
+      "name": "golden-hoop-spell",
+      "source": "github",
+      "repo": "wangdahoo/golden-hoop-spell"
+    }
+  ]
+}
