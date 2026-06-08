@@ -49,6 +49,7 @@ All intermediate files are stored under `.ghs/plans/`:
 | File | Description |
 |------|-------------|
 | `.ghs/plans/{date}-{slug}.md` | Technical plan (produced by designer) |
+| `.ghs/plans/{date}-{slug}-context.md` | Project context snapshot (pre-extracted architectural summary) |
 | `.ghs/plans/{date}-{slug}-review.md` | Review report (produced by reviewer) |
 | `.ghs/plans/{date}-{slug}-status.json` | Status file (maintained by dispatcher) |
 
@@ -63,6 +64,7 @@ State is tracked via `.ghs/plans/{date}-{slug}-status.json`:
 ```json
 {
   "plan_file": "{date}-{slug}.md",
+  "context_file": "{date}-{slug}-context.md",
   "round": 1,
   "status": "designing | reviewing | revising | pending_approval | approved | rejected",
   "max_rounds": 5,
@@ -104,6 +106,20 @@ Pass criteria: **zero severe or medium issues**. Only optimization items are acc
 
 5. **Initialize status file**: Write `status: "designing"`.
 
+### Phase 0.5: Context Snapshot Extraction
+
+Spawn an Explore subagent to scan the project and create a condensed context snapshot. This snapshot is shared by all subsequent subagents (designer and reviewer) across all rounds, eliminating redundant codebase exploration.
+
+```json
+{
+  "subagent_type": "Explore",
+  "description": "Extract project context snapshot",
+  "prompt": "Extract a project context snapshot for the following requirement:\n\n## Requirement\n<user's requirement description>\n\n## Project Directory\n<PROJECT_DIR>\n\n## Task\nScan the project and create a condensed context snapshot file at: <PROJECT_DIR>/.ghs/plans/<context_file>\n\nFollow the format in ${CLAUDE_PLUGIN_ROOT}/shared/references/context-snapshot-guide.md:\n1. Read the dependency manifest (package.json, requirements.txt, Cargo.toml, etc.)\n2. Get the directory structure (exclude node_modules, .git, build dirs)\n3. Read the main entry point\n4. Read config files and database schemas\n5. Read files in directories related to the requirement topic\n6. Condense findings into the snapshot format\n\nTarget 50-70% compression vs raw source. Include function signatures, schemas, and routing — not full file contents.\n\nWhen done, output: 'CONTEXT SNAPSHOT CREATED: <context_file>'"
+}
+```
+
+**Handling**: If the agent reports `CONTEXT SNAPSHOT CREATED`, proceed to Phase 1. Add `context_file` to the status JSON.
+
 ### Phase 1: Plan Design (Round N)
 
 > Every round of plan design follows this flow. Round 1 is a fresh design; Round 2+ incorporates review feedback.
@@ -128,12 +144,17 @@ You are a senior technical plan designer. Design an executable technical plan fo
 
 ## Project Context
 - Project directory: <PROJECT_DIR>
-- Current code structure: <brief description or key directories>
+- **Context snapshot**: <PROJECT_DIR>/.ghs/plans/<context_file>
+  READ THIS FILE FIRST. It contains a condensed summary of the project's architecture,
+  tech stack, directory structure, and relevant code excerpts. Only read raw project
+  files if the snapshot is clearly insufficient for a specific detail.
 
 ## Task Requirements
-1. Read the project code to understand the existing architecture
-2. Design a technical plan based on the requirement
-3. Save the plan to: <PROJECT_DIR>/.ghs/plans/<plan_file>
+1. Read the context snapshot to understand the project architecture
+2. If the snapshot lacks specific detail you need, read the relevant source file(s) from the project
+3. Design a technical plan based on the requirement
+4. Save the plan to: <PROJECT_DIR>/.ghs/plans/<plan_file>
+5. If you read files beyond the snapshot, list them after your completion signal
 
 ## Plan Structure
 The plan should include the following sections (adjust flexibly based on the requirement):
@@ -148,6 +169,9 @@ The plan should include the following sections (adjust flexibly based on the req
 <N == 1 ? "" : "- Previous review report: <PROJECT_DIR>/.ghs/plans/<review_file>
 - Revise the plan based on all Severe and Medium issues in the review report. Each issue must be explicitly addressed in the revised plan.">
 
+## Reference
+Read ${CLAUDE_PLUGIN_ROOT}/shared/references/plan-designer.md for detailed design principles and plan structure guide.
+
 ## Context Reset
 - Disregard any context from previous conversations
 - Read all necessary files fresh from the filesystem
@@ -156,6 +180,7 @@ The plan should include the following sections (adjust flexibly based on the req
 ## Completion Signal
 When done, output: "PLAN DESIGN COMPLETE: <plan_file>"
 If you encounter a technical decision you cannot resolve, output: "QUESTION: <specific question>"
+If you read files beyond the context snapshot, list them as: "ADDITIONAL FILES READ: <file1>, <file2>, ..."
 ```
 
 **Handling Designer Feedback**:
@@ -181,12 +206,15 @@ You are a senior architect responsible for reviewing technical plans. Critically
 
 ## Review Target
 - Plan file: <PROJECT_DIR>/.ghs/plans/<plan_file>
+- Context snapshot: <PROJECT_DIR>/.ghs/plans/<context_file>
 - Project directory: <PROJECT_DIR>
 
 ## Review Requirements
-1. Read the plan file and project code
-2. Check each section of the plan systematically
-3. Identify all issues and label them with severity:
+1. Read the context snapshot to understand the existing architecture
+2. Read the plan file
+3. If you need to verify specific implementation details against actual code, read those files from the project
+4. Check each section of the plan systematically
+5. Identify all issues and label them with severity:
    - **Severe**: Would cause bugs, or the plan itself is incorrect
    - **Medium**: Implementation path issues, poor design
    - **Optimization**: Does not block execution, nice-to-have
@@ -207,6 +235,9 @@ The review report must include:
 - Is the plan compatible with the existing architecture?
 - Are there security risks or performance issues?
 
+## Reference
+Read ${CLAUDE_PLUGIN_ROOT}/shared/references/plan-reviewer.md for detailed review standards, severity definitions, and review report format.
+
 ## Context Reset
 - Disregard any context from previous conversations
 - Read all necessary files fresh from the filesystem
@@ -225,6 +256,14 @@ If you encounter a judgment you cannot resolve, output: "QUESTION: <specific que
     - `round >= max_rounds` -> Notify the user that the max round limit is reached, use AskUserQuestion to show the current review result and ask whether to accept
 - Received `QUESTION` -> Use AskUserQuestion to ask the user, then re-dispatch the review task with the user's answer appended
 
+### Phase 2.5: Context Snapshot Update (Optional)
+
+After each design-review round, if the designer or reviewer read additional files beyond the context snapshot, update the snapshot to include the newly discovered context. This ensures subsequent rounds benefit from expanded knowledge.
+
+1. Check if the designer output contains `ADDITIONAL FILES READ: ...`
+2. If so, append a `## Supplementary Context` section to the context snapshot file with summaries of the additional files
+3. Future rounds will automatically include this expanded context
+
 ### Phase 3: User Approval
 
 After the plan passes review, use AskUserQuestion to request user confirmation:
@@ -242,9 +281,14 @@ After the plan passes review, use AskUserQuestion to request user confirmation:
    cp ${PROJECT_DIR}/.ghs/plans/${plan_file} ${PROJECT_DIR}/docs/ghs/plans/${plan_file}
    ```
 
-2. Update status to `approved`.
+2. Commit the finalized plan document:
+   ```bash
+   cd ${PROJECT_DIR} && git add docs/ghs/plans/${plan_file} && git commit -m "docs(plan): add technical plan - ${plan_file}"
+   ```
 
-3. Report the final plan location and a summary of review rounds to the user.
+3. Update status to `approved`.
+
+4. Report the final plan location and a summary of review rounds to the user. Suggest the next step: use `/ghs:sprint` to break the plan into features for implementation.
 
 ---
 
@@ -263,7 +307,7 @@ After the plan passes review, use AskUserQuestion to request user confirmation:
 
 5. **Reviews must be severity-graded**: Every issue from the reviewer must have a severity label (Severe/Medium/Optimization). Reviews without severity labels are invalid.
 
-6. **Plan designer must read code first**: The plan designer must read existing project code and understand the architecture before designing. No designing in a vacuum.
+6. **Plan designer must understand the project first**: The plan designer must understand the existing project architecture before designing. The context snapshot provides pre-extracted architectural knowledge; the designer reads this first and only falls back to raw files when the snapshot is insufficient. No designing in a vacuum.
 
 ## Error Handling
 
