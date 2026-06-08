@@ -8,6 +8,7 @@ A Claude Code plugin providing a suite of skills for sprint-driven project manag
 |-------|-------------|
 | `/ghs:init` | Initialize project tracking |
 | `/ghs:sprint` | Sprint planning & feature breakdown |
+| `/ghs:plan` | Generate technical plans via iterative design & review |
 | `/ghs:code` | Feature implementation (single/parallel) |
 | `/ghs:status` | Show project status |
 | `/ghs:archive` | Archive completed sprints |
