@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A skill suite that keeps Claude on a leash — structured sprints, iterative planning, and disciplined code delivery. Skills form a pipeline: `init` sets up tracking, `plan` generates technical designs through iterative review, `sprint` breaks work into features, `code` implements them, and `status`/`archive` track and close out progress.
+A skill suite that keeps Claude on a leash — iterative planning, structured sprints, and disciplined code delivery. Skills form a pipeline: `init` sets up tracking, `plan` generates technical designs through iterative review, `sprint` breaks work into features, `code` implements them, and `status`/`archive` track and close out progress.
 
 ## Architecture
 
