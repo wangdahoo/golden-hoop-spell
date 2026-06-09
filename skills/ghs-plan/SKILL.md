@@ -110,21 +110,25 @@ Pass criteria: **zero severe or medium issues**. Only optimization items are acc
 
 Spawn an Explore subagent to scan the project and create a condensed context snapshot. This snapshot is shared by all subsequent subagents (designer and reviewer) across all rounds, eliminating redundant codebase exploration.
 
+> **Note**: Explore subagents do not have file write permissions. The subagent outputs the snapshot content in its response; the dispatcher writes it to disk.
+
 ```json
 {
   "subagent_type": "Explore",
   "description": "Extract project context snapshot",
-  "prompt": "Extract a project context snapshot for the following requirement:\n\n## Requirement\n<user's requirement description>\n\n## Project Directory\n<PROJECT_DIR>\n\n## Task\nScan the project and create a condensed context snapshot file at: <PROJECT_DIR>/.ghs/plans/<context_file>\n\nFollow the format in ${CLAUDE_PLUGIN_ROOT}/shared/references/context-snapshot-guide.md:\n1. Read the dependency manifest (package.json, requirements.txt, Cargo.toml, etc.)\n2. Get the directory structure (exclude node_modules, .git, build dirs)\n3. Read the main entry point\n4. Read config files and database schemas\n5. Read files in directories related to the requirement topic\n6. Condense findings into the snapshot format\n\nTarget 50-70% compression vs raw source. Include function signatures, schemas, and routing — not full file contents.\n\nWhen done, output: 'CONTEXT SNAPSHOT CREATED: <context_file>'"
+  "prompt": "Extract a project context snapshot for the following requirement:\n\n## Requirement\n<user's requirement description>\n\n## Project Directory\n<PROJECT_DIR>\n\n## Task\nScan the project and produce a condensed context snapshot.\n\nFollow the format in ${CLAUDE_PLUGIN_ROOT}/shared/references/context-snapshot-guide.md:\n1. Read the dependency manifest (package.json, requirements.txt, Cargo.toml, etc.)\n2. Get the directory structure (exclude node_modules, .git, build dirs)\n3. Read the main entry point\n4. Read config files and database schemas\n5. Read files in directories related to the requirement topic\n6. Condense findings into the snapshot format\n\nTarget 50-70% compression vs raw source. Include function signatures, schemas, and routing — not full file contents.\n\n## Output Format\nOutput the FULL snapshot content in your response, delimited by:\n<<<CONTEXT_SNAPSHOT_START>>>\n...snapshot content here...\n<<<CONTEXT_SNAPSHOT_END>>>\n\nDo NOT attempt to write any files. Just output the content between the delimiters."
 }
 ```
 
-**Handling**: If the agent reports `CONTEXT SNAPSHOT CREATED`, proceed to Phase 1. Add `context_file` to the status JSON.
+**Handling**: Extract the content between `<<<CONTEXT_SNAPSHOT_START>>>` and `<<<CONTEXT_SNAPSHOT_END>>>` from the subagent's response, then write it to `<PROJECT_DIR>/.ghs/plans/<context_file>`. Add `context_file` to the status JSON and proceed to Phase 1.
 
 ### Phase 1: Plan Design (Round N)
 
 > Every round of plan design follows this flow. Round 1 is a fresh design; Round 2+ incorporates review feedback.
 
 Spawn a Plan subagent to design or revise the plan:
+
+> **Note**: Plan subagents do not have file write permissions. The subagent outputs the plan content in its response; the dispatcher writes it to disk.
 
 ```json
 {
@@ -153,7 +157,7 @@ You are a senior technical plan designer. Design an executable technical plan fo
 1. Read the context snapshot to understand the project architecture
 2. If the snapshot lacks specific detail you need, read the relevant source file(s) from the project
 3. Design a technical plan based on the requirement
-4. Save the plan to: <PROJECT_DIR>/.ghs/plans/<plan_file>
+4. Output the FULL plan content in your response (do NOT attempt to write files)
 5. If you read files beyond the snapshot, list them after your completion signal
 
 ## Plan Structure
@@ -177,14 +181,20 @@ Read ${CLAUDE_PLUGIN_ROOT}/shared/references/plan-designer.md for detailed desig
 - Read all necessary files fresh from the filesystem
 - This is an isolated task
 
+## Output Format
+Output the FULL plan content in your response, delimited by:
+<<<PLAN_START>>>
+...plan content here...
+<<<PLAN_END>>>
+
 ## Completion Signal
-When done, output: "PLAN DESIGN COMPLETE: <plan_file>"
+When done, output: "PLAN DESIGN COMPLETE"
 If you encounter a technical decision you cannot resolve, output: "QUESTION: <specific question>"
 If you read files beyond the context snapshot, list them as: "ADDITIONAL FILES READ: <file1>, <file2>, ..."
 ```
 
 **Handling Designer Feedback**:
-- Received `PLAN DESIGN COMPLETE` -> Update status to `reviewing`, proceed to Phase 2
+- Received `PLAN DESIGN COMPLETE` -> Extract the content between `<<<PLAN_START>>>` and `<<<PLAN_END>>>` from the subagent's response, then write it to `<PROJECT_DIR>/.ghs/plans/<plan_file>`. Update status to `reviewing`, proceed to Phase 2.
 - Received `QUESTION` -> Use AskUserQuestion to ask the user, then re-dispatch the design task with the user's answer appended to the prompt
 
 ### Phase 2: Plan Review
