@@ -18,6 +18,26 @@ Skills form a pipeline: `init` → `plan` → `sprint` → `code` → `status`/`
 | `/ghs:archive` | Archive completed sprints |
 | `/ghs:force-archive` | Force archive all sprints |
 
+## Installation
+
+### Install via Marketplace (Recommended)
+
+Add the marketplace and install the plugin:
+
+```bash
+# Add marketplace
+/plugin marketplace add wangdahoo/golden-hoop-spell
+
+# Install plugin
+/plugin install golden-hoop-spell
+```
+
+### Local Development
+
+```bash
+claude --plugin-dir /path/to/golden-hoop-spell
+```
+
 ## Quick Start
 
 ```bash
@@ -102,26 +122,6 @@ Move completed sprint data to `.ghs/archived/` and reset tracking files for a fr
 ```
 
 Only archives sprints that have reached `completed` status. For archiving regardless of status, use `/ghs:force-archive` (will ask for confirmation).
-
-## Installation
-
-### Install via Marketplace (Recommended)
-
-Add the marketplace and install the plugin:
-
-```bash
-# Add marketplace
-/plugin marketplace add wangdahoo/golden-hoop-spell
-
-# Install plugin
-/plugin install golden-hoop-spell
-```
-
-### Local Development
-
-```bash
-claude --plugin-dir /path/to/golden-hoop-spell
-```
 
 ## License
 
