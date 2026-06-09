@@ -223,7 +223,7 @@ Add planning session entry at top:
 
 ### Summary Output Format
 
-Display this summary in the terminal and ask the user to confirm before committing:
+Display this summary in the terminal and ask the user to confirm before finalizing the sprint:
 
 ```markdown
 ## Sprint Planning Complete

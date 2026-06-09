@@ -116,7 +116,7 @@ Add a planning entry at the **top** of the sessions section in `.ghs/progress.md
 
 ### Step 7: Display Summary and Confirm
 
-Show this summary to the user and ask for confirmation before committing:
+Show this summary to the user and ask for confirmation before finalizing the sprint:
 
 ```markdown
 ## Sprint Planning Complete
