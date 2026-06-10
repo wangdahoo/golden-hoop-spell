@@ -108,19 +108,38 @@ Pass criteria: **zero severe or medium issues**. Only optimization items are acc
 
 ### Phase 0.5: Context Snapshot Extraction
 
-Spawn an Explore subagent to scan the project and create a condensed context snapshot. This snapshot is shared by all subsequent subagents (designer and reviewer) across all rounds, eliminating redundant codebase exploration.
+Extract a condensed context snapshot of the project. This snapshot is shared by all subsequent subagents (designer and reviewer) across all rounds, eliminating redundant codebase exploration.
+
+**Detection**: Check if codegraph is available for the target project:
+1. Check if `${PROJECT_DIR}/.codegraph/` directory exists
+2. If yes, try calling `codegraph_status(projectPath="<PROJECT_DIR>")` to confirm the index is usable
+3. If both checks pass → use Path A; otherwise → use Path B
+
+#### Path A: Codegraph-accelerated (preferred when available)
+
+The dispatcher calls codegraph tools directly — no subagent needed:
+
+1. `codegraph_files(maxDepth=3, projectPath="<PROJECT_DIR>")` — get project structure
+2. `codegraph_explore(query="<requirement-related keywords> architecture", projectPath="<PROJECT_DIR>")` — get relevant code context
+3. Condense the output into the context snapshot format defined in `${CLAUDE_PLUGIN_ROOT}/shared/references/context-snapshot-guide.md`
+4. Write to `<PROJECT_DIR>/.ghs/plans/<context_file>`
+
+#### Path B: Explore subagent (fallback)
+
+Spawn an Explore subagent (with haiku model) to scan the project and create a condensed context snapshot.
 
 > **Note**: Explore subagents do not have file write permissions. The subagent outputs the snapshot content in its response; the dispatcher writes it to disk.
 
 ```json
 {
   "subagent_type": "Explore",
+  "model": "haiku",
   "description": "Extract project context snapshot",
   "prompt": "Extract a project context snapshot for the following requirement:\n\n## Requirement\n<user's requirement description>\n\n## Project Directory\n<PROJECT_DIR>\n\n## Task\nScan the project and produce a condensed context snapshot.\n\nFollow the format in ${CLAUDE_PLUGIN_ROOT}/shared/references/context-snapshot-guide.md:\n1. Read the dependency manifest (package.json, requirements.txt, Cargo.toml, etc.)\n2. Get the directory structure (exclude node_modules, .git, build dirs)\n3. Read the main entry point\n4. Read config files and database schemas\n5. Read files in directories related to the requirement topic\n6. Condense findings into the snapshot format\n\nTarget 50-70% compression vs raw source. Include function signatures, schemas, and routing — not full file contents.\n\n## Output Format\nOutput the FULL snapshot content in your response, delimited by:\n<<<CONTEXT_SNAPSHOT_START>>>\n...snapshot content here...\n<<<CONTEXT_SNAPSHOT_END>>>\n\nDo NOT attempt to write any files. Just output the content between the delimiters."
 }
 ```
 
-**Handling**: Extract the content between `<<<CONTEXT_SNAPSHOT_START>>>` and `<<<CONTEXT_SNAPSHOT_END>>>` from the subagent's response, then write it to `<PROJECT_DIR>/.ghs/plans/<context_file>`. Add `context_file` to the status JSON and proceed to Phase 1.
+**Handling (Path B)**: Extract the content between `<<<CONTEXT_SNAPSHOT_START>>>` and `<<<CONTEXT_SNAPSHOT_END>>>` from the subagent's response, then write it to `<PROJECT_DIR>/.ghs/plans/<context_file>`. Add `context_file` to the status JSON and proceed to Phase 1.
 
 ### Phase 1: Plan Design (Round N)
 
@@ -230,7 +249,12 @@ You are a senior architect responsible for reviewing technical plans. Critically
    - **Optimization**: Does not block execution, nice-to-have
 
 ## Review Report Format
-Save the review report to: <PROJECT_DIR>/.ghs/plans/<review_file>
+Output the FULL review report in your response, delimited by:
+<<<REVIEW_START>>>
+...review report content here...
+<<<REVIEW_END>>>
+
+Do NOT attempt to write any files.
 
 The review report must include:
 - Plan summary (one sentence)
@@ -254,12 +278,13 @@ Read ${CLAUDE_PLUGIN_ROOT}/shared/references/plan-reviewer.md for detailed revie
 - This is an isolated task
 
 ## Completion Signal
-When done, output: "REVIEW COMPLETE: <review_file> | Verdict: PASS/FAIL | Severe: X Medium: Y Optimization: Z"
+When done, output: "REVIEW COMPLETE | Verdict: PASS/FAIL | Severe: X Medium: Y Optimization: Z"
 If you encounter a judgment you cannot resolve, output: "QUESTION: <specific question>"
 ```
 
 **Handling Reviewer Feedback**:
-- Received `REVIEW COMPLETE` -> Read the review report and evaluate the conclusion
+- Received `REVIEW COMPLETE` -> Extract the content between `<<<REVIEW_START>>>` and `<<<REVIEW_END>>>` from the subagent's response, then write it to `<PROJECT_DIR>/.ghs/plans/<review_file>`. Evaluate the verdict from the completion signal.
+  - **Early stop**: If round 1 produces a PASS, proceed directly to Phase 3 — no need for additional rounds.
   - **PASS** (no severe or medium issues) -> Update status to `pending_approval`, proceed to Phase 3
   - **FAIL** -> Check round count:
     - `round < max_rounds` -> Update status to `revising`, increment round, go back to Phase 1
@@ -306,7 +331,7 @@ After the plan passes review, use AskUserQuestion to request user confirmation:
 
 1. **One question at a time**: When using AskUserQuestion to follow up with the user, ask exactly one question. Do not move to the next question until the current one is answered.
 
-2. **Maximum 5 review-revise rounds**: Starting from the initial draft, allow up to 5 design-review cycles. Once the limit is reached, the user must decide.
+2. **Maximum review-revise rounds**: The default limit is 5 rounds. For straightforward requirements (e.g., adding a single feature, small refactor, < 200 word description with no architectural changes), set `max_rounds` to 2 in the status file to save time. Once the limit is reached, the user must decide.
 
 3. **Role isolation**:
    - The plan designer cannot communicate directly with the user; all questions are relayed through the dispatcher

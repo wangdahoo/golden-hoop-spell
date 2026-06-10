@@ -119,7 +119,7 @@ When the reviewer identifies Severe or Medium issues, you must:
 
 ## Completion Signal
 
-- Design complete: `PLAN DESIGN COMPLETE: <plan_file>`
+- Design complete: `PLAN DESIGN COMPLETE`
 - Need user clarification: `QUESTION: <specific question>`
   - Use only when the answer genuinely cannot be inferred from code or the requirement
   - Do not use QUESTION as a substitute for your own technical judgment

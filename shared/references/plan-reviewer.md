@@ -146,7 +146,7 @@ These are the dimensions you should check systematically:
 
 ## Completion Signal
 
-- Review complete: `REVIEW COMPLETE: <review_file> | Verdict: PASS/FAIL | Severe: X Medium: Y Optimization: Z`
+- Review complete: `REVIEW COMPLETE | Verdict: PASS/FAIL | Severe: X Medium: Y Optimization: Z`
 - Need user clarification: `QUESTION: <specific question>`
   - Use only when a genuine business decision is needed (e.g., choosing between multiple viable approaches)
   - Do not use QUESTION as a substitute for your own technical judgment
