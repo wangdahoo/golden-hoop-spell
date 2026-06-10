@@ -103,9 +103,9 @@ Check all acceptance criteria:
    - `completed` — all acceptance criteria met, tests pass
    - `blocked` — cannot proceed, document reason in `blocked_reason`
 
-3. Commit implementation changes:
+3. Commit implementation changes (`.ghs/` files are local tracking and must NEVER be committed):
    ```bash
-   git add [implementation files]
+   git add <list each modified file explicitly — do NOT use git add . or git add -A>
    git commit -m "feat(<scope>): <description>"
    ```
 
@@ -157,10 +157,11 @@ This is an isolated task. You MUST:
 2. Implement the feature
 3. Test all acceptance criteria
 4. Run lint/build to verify no breakage
-5. Commit your changes with message: feat(<scope>): <brief description> (Feature: <feature_id>)
+5. Commit your changes: list each modified file explicitly with `git add` (never `git add .` or `git add -A`), then commit with message: feat(<scope>): <brief description> (Feature: <feature_id>)
 
 ## Critical Rules
 - Do NOT modify .ghs/features.json or .ghs/progress.md - the orchestrator will update these
+- Do NOT commit any files under .ghs/ — they are local tracking files
 - Focus ONLY on this feature
 - Ensure the codebase remains in a working state
 - Signal completion by stating "FEATURE COMPLETE: <feature_id>" at the end
@@ -188,9 +189,9 @@ For each completed subagent:
 
 1. Update `.ghs/features.json` — completed features get `status: "completed"`, blocked get `status: "blocked"`
 2. Add parallel orchestration summary to top of `.ghs/progress.md` sessions section
-3. Final commit (implementation files only):
+3. Final commit (implementation files only — never commit `.ghs/` files):
    ```bash
-   git add [implementation files]
+   git add <list each modified file explicitly — do NOT use git add . or git add -A>
    git commit -m "chore: parallel orchestration complete - N/M features completed"
    ```
 

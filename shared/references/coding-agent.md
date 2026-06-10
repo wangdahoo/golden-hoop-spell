@@ -46,9 +46,9 @@
 1. Update `.ghs/progress.md` with session summary
 2. Update `.ghs/features.json` if feature complete
 3. Ensure no lint/build errors
-4. Commit implementation changes:
+4. Commit implementation changes (never commit `.ghs/` files):
    ```bash
-   git add [implementation files]
+   git add <list each modified file explicitly — do NOT use git add . or git add -A>
    git commit -m "feat(<scope>): <description>"
    ```
 
@@ -247,7 +247,7 @@ This is an isolated task. You MUST:
 2. Implement the feature following the coding-agent.md guidelines
 3. Test all acceptance criteria
 4. Run lint/build to verify no breakage
-5. Commit your changes with message: feat(<scope>): <brief description> (Feature: <feature_id>)
+5. Commit your changes: list each modified file explicitly with `git add` (never `git add .` or `git add -A`), then commit with message: feat(<scope>): <brief description> (Feature: <feature_id>)
 
 ## Critical Rules
 - Do NOT modify .ghs/features.json or .ghs/progress.md - the orchestrator will update these
@@ -321,9 +321,9 @@ For each completed subagent:
 - Run /ghs:code to address remaining issues
 ```
 
-3. **Final Commit** (implementation files only)
+3. **Final Commit** (implementation files only — never commit `.ghs/` files)
    ```bash
-   git add [implementation files]
+   git add <list each modified file explicitly — do NOT use git add . or git add -A>
    git commit -m "chore: parallel orchestration complete - 6/8 features completed"
    ```
 
