@@ -186,15 +186,9 @@ For each completed subagent:
 
 ### State Update Phase
 
-Subagents already committed their implementation files individually. Amend the last subagent commit to append the orchestration summary (before touching `.ghs/` files), then update local tracking files.
+Subagents already committed their implementation files individually. No further git commits needed — the orchestrator only updates local tracking files.
 
-1. Append orchestration summary to the last subagent commit message:
-   ```bash
-   git commit --amend -m "$(git log -1 --format=%B)
-
-   parallel orchestration complete - N/M features completed"
-   ```
-2. Update `.ghs/features.json` — completed features get `status: "completed"`, blocked get `status: "blocked"`
+1. Update `.ghs/features.json` — completed features get `status: "completed"`, blocked get `status: "blocked"`
 3. Add parallel orchestration summary to top of `.ghs/progress.md` sessions section
 
 ### Parallel Error Handling
