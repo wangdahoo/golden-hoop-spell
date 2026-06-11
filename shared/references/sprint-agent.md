@@ -249,7 +249,7 @@ Display this summary in the terminal and ask the user to confirm before finalizi
 Run the Coding Agent with the first pending feature: [first-feature-id]
 ```
 
-After displaying the summary, ask the user to confirm. No git commit needed — tracking files live inside `.ghs/` (gitignored).
+After displaying the summary, ask the user to confirm. No git commit needed — `.ghs/` tracking files are local metadata (gitignored by `ghs:init`).
 
 ## Critical Rules
 

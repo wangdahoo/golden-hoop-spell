@@ -50,7 +50,7 @@ This will:
 - Remove all sprints from `.ghs/features.json` (project info is preserved)
 - Reset `.ghs/progress.md` to the default template
 
-No git commit needed — tracking files live inside `.ghs/` (gitignored).
+No git commit needed — `.ghs/` tracking files are local metadata (gitignored by `ghs:init`).
 
 ## After Force Archive
 

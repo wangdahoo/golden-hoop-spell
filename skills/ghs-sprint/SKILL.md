@@ -141,7 +141,7 @@ Show this summary to the user and ask for confirmation before finalizing the spr
 Run /ghs:code to start implementing the first feature: [first-feature-id]
 ```
 
-After user confirms, the sprint is ready for development. No git commit needed — tracking files live inside `.ghs/` (gitignored).
+After user confirms, the sprint is ready for development. No git commit needed — `.ghs/` tracking files are local metadata (gitignored by `ghs:init`).
 
 ## Reference
 

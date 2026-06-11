@@ -42,7 +42,7 @@ This will:
 - Remove the archived sprint from `.ghs/features.json`
 - Reset `.ghs/progress.md` to the default template
 
-No git commit needed — tracking files live inside `.ghs/` (gitignored).
+No git commit needed — `.ghs/` tracking files are local metadata (gitignored by `ghs:init`).
 
 ## What Gets Archived
 

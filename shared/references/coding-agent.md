@@ -41,16 +41,16 @@
 
 ### End of Session
 
-**Always perform:**
+**Always perform in this order:**
 
-1. Update `.ghs/progress.md` with session summary
-2. Update `.ghs/features.json` if feature complete
-3. Ensure no lint/build errors
-4. Commit implementation changes (never commit `.ghs/` files):
+1. Ensure no lint/build errors
+2. Commit implementation changes (before touching any `.ghs/` files):
    ```bash
-   git add <list each modified file explicitly — do NOT use git add . or git add -A>
+   git add <list each modified implementation file explicitly>
    git commit -m "feat(<scope>): <description>"
    ```
+3. Update `.ghs/features.json` if feature complete
+4. Update `.ghs/progress.md` with session summary
 
 ## Implementation Process
 
@@ -247,10 +247,10 @@ This is an isolated task. You MUST:
 2. Implement the feature following the coding-agent.md guidelines
 3. Test all acceptance criteria
 4. Run lint/build to verify no breakage
-5. Commit your changes: list each modified file explicitly with `git add` (never `git add .` or `git add -A`), then commit with message: feat(<scope>): <brief description> (Feature: <feature_id>)
+5. Commit your changes (only implementation files — do NOT modify .ghs/ files): list each modified file explicitly with `git add`, then commit with message: feat(<scope>): <brief description> (Feature: <feature_id>)
 
 ## Critical Rules
-- Do NOT modify .ghs/features.json or .ghs/progress.md - the orchestrator will update these
+- Do NOT modify .ghs/features.json or .ghs/progress.md - the orchestrator will update these after your commit
 - Focus ONLY on this feature - do not modify unrelated code
 - Ensure the codebase remains in a working state
 - Signal completion by stating "FEATURE COMPLETE: <feature_id>" at the end
@@ -294,8 +294,15 @@ For each completed subagent:
 
 ### State Update Phase
 
-1. **Update .ghs/features.json** — Completed features get `status: "completed"`, blocked get `status: "blocked"` with `blocked_reason`
-2. **Write .ghs/progress.md entry** — Add parallel orchestration summary at the top of sessions section:
+1. **Final Commit** (implementation files from all subagents, before touching `.ghs/` files)
+   ```bash
+   git add <list each modified implementation file explicitly>
+   git commit -m "chore: parallel orchestration complete - 6/8 features completed"
+   ```
+
+2. **Update .ghs/features.json** — Completed features get `status: "completed"`, blocked get `status: "blocked"` with `blocked_reason`
+
+3. **Write .ghs/progress.md entry** — Add parallel orchestration summary at the top of sessions section:
 
 ```markdown
 ## Parallel Orchestration - YYYY-MM-DD
@@ -320,12 +327,6 @@ For each completed subagent:
 - Review and fix blocked features manually
 - Run /ghs:code to address remaining issues
 ```
-
-3. **Final Commit** (implementation files only — never commit `.ghs/` files)
-   ```bash
-   git add <list each modified file explicitly — do NOT use git add . or git add -A>
-   git commit -m "chore: parallel orchestration complete - 6/8 features completed"
-   ```
 
 ### Parallel Mode Error Handling
 
@@ -458,9 +459,9 @@ See [examples.md](examples.md) for complete examples.
 ```
 ☐ Feature complete (or clearly documented why not)
 ☐ No lint or build errors
-☐ Code committed
-☐ .ghs/progress.md updated
+☐ Code committed (before updating .ghs/ files)
 ☐ .ghs/features.json updated (if feature complete)
+☐ .ghs/progress.md updated
 ☐ Application in working state
 ```
 
