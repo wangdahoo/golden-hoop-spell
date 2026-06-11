@@ -20,12 +20,18 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
 
 ### Step 1: Archive Completed Sprints
 
-Before creating a new sprint, check for completed sprints to archive:
+Before creating a new sprint, check for completed sprints to archive.
+
+**1a. List completed sprints:**
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --list --project-dir "<PROJECT_DIR>"
 ```
 
-If there are completed sprints, offer to archive them before proceeding.
+**1b. If completed sprints exist**, offer to archive them before proceeding:
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --project-dir "<PROJECT_DIR>"
+```
+This archives all completed sprints at once — the script determines which ones to archive based on their status.
 
 ### Step 2: Analyze Requirements
 
