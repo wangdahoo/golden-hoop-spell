@@ -108,43 +108,13 @@ def remove_archived_sprint(features_data: Dict, sprint_id: str) -> Dict:
 
 
 def get_progress_template() -> str:
-    """Return the default progress.md template."""
-    return """# Project Progress Log
-
-This file tracks the progress of all agent sessions. Each session should add an entry at the top.
-
----
-
-## Session Template
-
-```markdown
-## Session N - YYYY-MM-DD
-**Agent**: Sprint | Coding
-**Sprint**: [Sprint ID if applicable]
-**Feature**: [Feature ID if applicable]
-
-### Work Completed
-- [What was implemented or done]
-
-### Tests Performed
-- [How changes were verified]
-
-### Issues Encountered
-- [Any blockers, bugs, or challenges]
-
-### Decisions Made
-- [Architectural or design choices]
-
-### Next Steps
-- [Recommended next actions]
-```
-
----
-
-## Sessions
-
-<!-- New sessions should be added above this line -->
-"""
+    """Return the default progress.md template by reading from shared/assets/progress.md."""
+    template_path = Path(__file__).parent.parent / "assets" / "progress.md"
+    if template_path.exists():
+        with open(template_path, "r", encoding="utf-8") as f:
+            return f.read()
+    else:
+        raise FileNotFoundError(f"Progress template not found: {template_path}")
 
 
 def reset_progress_md(progress_path: Path):
