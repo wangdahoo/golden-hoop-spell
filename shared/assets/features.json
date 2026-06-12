@@ -1,4 +1,58 @@
 {
+  "_schema_docs": {
+    "_description": "This section documents the features.json schema and is not used by any scripts. Scripts read only 'project', 'sprints', and 'metadata'. You may delete this section.",
+    "feature_optional_fields": {
+      "blocked_reason": {
+        "type": "string",
+        "description": "Explains why a feature is blocked. Used when status is 'blocked'. Example: 'Waiting for API access from infra team'",
+        "required": false,
+        "used_with_status": "blocked"
+      },
+      "category": {
+        "type": "string",
+        "description": "Feature category for grouping. One of: core, ui, api, auth, data, infra.",
+        "required": false
+      },
+      "priority": {
+        "type": "string",
+        "description": "Feature priority. One of: high, medium, low.",
+        "required": false
+      },
+      "acceptance_criteria": {
+        "type": "array of strings",
+        "description": "List of testable conditions that must be met for the feature to be considered complete.",
+        "required": false
+      },
+      "technical_notes": {
+        "type": "string",
+        "description": "Implementation guidance for the developer.",
+        "required": false
+      },
+      "dependencies": {
+        "type": "array of strings",
+        "description": "List of feature IDs that must be completed before this feature can start.",
+        "required": false
+      },
+      "estimated_complexity": {
+        "type": "string",
+        "description": "Size estimate. One of: small, medium, large.",
+        "required": false
+      },
+      "files_affected": {
+        "type": "array of strings",
+        "description": "List of file paths that this feature is expected to modify or create.",
+        "required": false
+      }
+    },
+    "feature_example_blocked": {
+      "id": "s1-feat-003",
+      "title": "Example blocked feature",
+      "description": "This feature demonstrates the blocked_reason field",
+      "status": "blocked",
+      "blocked_reason": "Waiting for external API credentials from the infrastructure team",
+      "dependencies": ["s1-feat-001"]
+    }
+  },
   "project": {
     "name": "Project Name",
     "description": "Brief project description",
