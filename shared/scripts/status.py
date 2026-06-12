@@ -114,10 +114,22 @@ def main():
 
             if status_counts["pending"] > 0:
                 pending = [f for f in features if f.get("status") == "pending"]
-                if pending:
-                    next_feature = pending[0]
+                completed_ids = {
+                    f.get("id") for f in features if f.get("status") == "completed"
+                }
+                ready = [
+                    f
+                    for f in pending
+                    if all(dep in completed_ids for dep in f.get("dependencies", []))
+                ]
+                if ready:
+                    next_feature = ready[0]
                     print(
                         f"   ▶️  Next up: {next_feature.get('title', 'Unknown')} ({next_feature.get('id', '')})"
+                    )
+                else:
+                    print(
+                        "   ⏸️  No ready features — all pending features have unmet dependencies"
                     )
 
             print()
