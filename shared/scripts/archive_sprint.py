@@ -153,6 +153,32 @@ def reset_progress_md(progress_path: Path):
         f.write(get_progress_template())
 
 
+def remove_sprint_sessions(progress_path: Path, sprint_ids: List[str]):
+    """Remove sessions belonging to the given sprint IDs from progress.md.
+
+    Keeps all sessions that do not reference any of the given sprint IDs.
+    """
+    with open(progress_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    sessions = content.split("## Session")
+    header = sessions[0]
+    remaining_sessions = []
+
+    for session in sessions[1:]:
+        # Keep sessions that don't reference any of the archived sprint IDs
+        if not any(sid.lower() in session.lower() for sid in sprint_ids):
+            remaining_sessions.append("## Session" + session)
+
+    with open(progress_path, "w", encoding="utf-8") as f:
+        f.write(header)
+        if remaining_sessions:
+            # Ensure proper separation between header and remaining sessions
+            if not header.endswith("\n\n"):
+                f.write("\n\n" if header.endswith("\n") else "\n\n")
+            f.write("\n\n".join(remaining_sessions))
+
+
 def archive_completed_sprints(
     project_dir: Path, dry_run: bool = False, force: bool = False
 ) -> List[Dict]:
@@ -234,9 +260,19 @@ def archive_completed_sprints(
             f"\nUpdated features.json - removed {len(archived_info)} archived sprint(s)"
         )
 
-        if sprints_to_archive:
+        remaining_sprints = features_data.get("sprints", [])
+        if not remaining_sprints:
             reset_progress_md(progress_path)
             print("Reset progress.md to default template")
+        else:
+            archived_sprint_ids = [
+                info["sprint_id"] for info in archived_info
+            ]
+            remove_sprint_sessions(progress_path, archived_sprint_ids)
+            print(
+                f"Removed {len(archived_info)} archived sprint session(s) from progress.md "
+                f"({len(remaining_sprints)} sprint(s) remaining)"
+            )
 
     return archived_info
 
