@@ -5,3 +5,4 @@ node_modules/
 .env.*
 ghs-workspace/*
 !ghs-workspace/CLAUDE.md
+.ghs
