@@ -26,8 +26,10 @@ def read_progress_md(filepath: Path, last_n=5):
 
     # Split on any H2 heading so that all session types are captured:
     # ## Session, ## Sprint Planning, ## Parallel Orchestration, etc.
-    sessions = re.split(r"^## ", content, flags=re.MULTILINE)
-    return sessions[1 : last_n + 1] if len(sessions) > 1 else []
+    sections = re.split(r"^## ", content, flags=re.MULTILINE)
+    # Filter out template/non-session sections — actual sessions always contain a date.
+    sessions = [s for s in sections if re.search(r"\d{4}-\d{2}-\d{2}", s.split("\n", 1)[0])]
+    return sessions[:last_n]
 
 
 def format_feature_status(features):

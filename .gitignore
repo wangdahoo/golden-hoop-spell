@@ -6,3 +6,4 @@ node_modules/
 ghs-workspace/*
 !ghs-workspace/CLAUDE.md
 .ghs
+__pycache__/
