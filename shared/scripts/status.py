@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 
@@ -23,8 +24,12 @@ def read_progress_md(filepath: Path, last_n=5):
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
 
-    sessions = content.split("## Session")
-    return sessions[1 : last_n + 1] if len(sessions) > 1 else []
+    # Split on any H2 heading so that all session types are captured:
+    # ## Session, ## Sprint Planning, ## Parallel Orchestration, etc.
+    sections = re.split(r"^## ", content, flags=re.MULTILINE)
+    # Filter out template/non-session sections — actual sessions always contain a date.
+    sessions = [s for s in sections if re.search(r"\d{4}-\d{2}-\d{2}", s.split("\n", 1)[0])]
+    return sessions[:last_n]
 
 
 def format_feature_status(features):
@@ -111,10 +116,22 @@ def main():
 
             if status_counts["pending"] > 0:
                 pending = [f for f in features if f.get("status") == "pending"]
-                if pending:
-                    next_feature = pending[0]
+                completed_ids = {
+                    f.get("id") for f in features if f.get("status") == "completed"
+                }
+                ready = [
+                    f
+                    for f in pending
+                    if all(dep in completed_ids for dep in f.get("dependencies", []))
+                ]
+                if ready:
+                    next_feature = ready[0]
                     print(
                         f"   ▶️  Next up: {next_feature.get('title', 'Unknown')} ({next_feature.get('id', '')})"
+                    )
+                else:
+                    print(
+                        "   ⏸️  No ready features — all pending features have unmet dependencies"
                     )
 
             print()

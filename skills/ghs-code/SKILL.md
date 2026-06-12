@@ -28,9 +28,15 @@ The project must have an active sprint with pending features. If not, tell the u
    ```
    Read `.ghs/progress.md` to understand previous sessions.
 
-3. **Review feature status**: Read `.ghs/features.json` to see current sprint, completed/in-progress/pending features, and dependencies.
+3. **Validate project structure**:
+   ```bash
+   ~/.pyenv/shims/python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/validate_structure.py --project-dir "<PROJECT_DIR>"
+   ```
+   If validation fails, report errors and stop. Fix issues before proceeding.
 
-4. **Verify project state**: Run lint and build commands. If broken, **fix existing issues before starting new work**.
+4. **Review feature status**: Read `.ghs/features.json` to see current sprint, completed/in-progress/pending features, and dependencies.
+
+5. **Verify project state**: Run lint and build commands. If broken, **fix existing issues before starting new work**.
 
 ---
 
@@ -42,6 +48,8 @@ Choose **ONE** feature per session. Prioritize:
 1. Features from current in-progress sprint
 2. High-priority pending features with completed dependencies
 3. Features that build on recent work
+
+**Recovery protocol**: If a feature has status `in_progress` but the working tree is clean (no uncommitted changes related to it), treat it as `pending` and offer to pick it up. This handles cases where a previous session was interrupted after updating status but before completing work.
 
 ### Step 2: Understand Feature
 
@@ -57,7 +65,7 @@ Choose **ONE** feature per session. Prioritize:
 - **Stay focused** — don't scope-creep
 - **Follow conventions** — match existing code style
 
-Commit message format: `<type>(<scope>): <description>` (types: feat, fix, refactor, test, docs, chore, style)
+Commit message format: `<type>(<scope>): <description> (Feature: <feature-id>)` (types: feat, fix, refactor, test, docs, chore, style)
 
 ### Step 4: Verify
 
@@ -73,7 +81,7 @@ Check all acceptance criteria:
 1. **Commit implementation changes first** (before touching any `.ghs/` files):
    ```bash
    git add <list each modified implementation file explicitly>
-   git commit -m "feat(<scope>): <description>"
+   git commit -m "feat(<scope>): <description> (Feature: <feature-id>)"
    ```
 
 2. Update the feature status in `.ghs/features.json` (only change `status` field):
@@ -123,11 +131,15 @@ When invoked with `--parallel`, implement multiple independent features concurre
 
 ### Analysis Phase
 
-1. **Build dependency graph**: For each pending/blocked feature, check if all dependencies are completed. Collect all "ready" features.
+1. **Identify ready features and build batches**: Use `parallel_utils.py` to get ready features and conflict-free batches:
+   ```bash
+   ~/.pyenv/shims/python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parallel_utils.py --project-dir "<PROJECT_DIR>" --max-parallel <N>
+   ```
+   The script outputs JSON with `ready_features`, `batches`, `skipped`, and any `cycles` detected. Use the `batches` output directly for dispatch.
 
-2. **Detect file conflicts**: Group features by file overlap. Features modifying the same files **cannot** run in parallel.
+2. **Detect file conflicts**: Group features by file overlap. Features modifying the same files **cannot** run in parallel. (Handled automatically by `parallel_utils.py`.)
 
-3. **Create batches**: Group non-conflicting ready features into batches (max 5 concurrent). Display the execution plan to the user.
+3. **Create batches**: Group non-conflicting ready features into batches. Display the execution plan to the user.
 
 ### Dispatch Phase
 
@@ -189,7 +201,7 @@ For each completed subagent:
 Subagents already committed their implementation files individually. No further git commits needed — the orchestrator only updates local tracking files.
 
 1. Update `.ghs/features.json` — completed features get `status: "completed"`, blocked get `status: "blocked"`
-3. Add parallel orchestration summary to top of `.ghs/progress.md` sessions section
+2. Add parallel orchestration summary to top of `.ghs/progress.md` sessions section
 
 ### Parallel Error Handling
 

@@ -14,7 +14,7 @@ This file contains realistic, fully-populated examples for reference.
   },
   "sprints": [
     {
-      "id": "sprint-001",
+      "id": "s1",
       "name": "Authentication Sprint",
       "goal": "Implement complete user authentication with email/password and social login",
       "status": "in_progress",
@@ -177,7 +177,7 @@ This file contains realistic, fully-populated examples for reference.
 ```markdown
 ## Sprint Planning - 2024-01-15
 **Agent**: Sprint Agent
-**Sprint**: sprint-001 - Authentication Sprint
+**Sprint**: s1 - Authentication Sprint
 
 ### Requirements Received
 - User authentication with email/password
@@ -221,7 +221,7 @@ Implement complete user authentication flow including social login, email verifi
 ```markdown
 ## Session 2 - 2024-01-16
 **Agent**: Coding Agent
-**Sprint**: sprint-001
+**Sprint**: s1
 **Feature**: s1-feat-002 - Create login page
 
 ### Implementation
@@ -272,12 +272,12 @@ After archiving completed sprint:
 ```
 project-root/
 ├── .ghs/
-│   ├── features.json          (sprint-001 removed, only sprint-002 remains)
+│   ├── features.json          (s1 removed, only s2 remains)
 │   ├── progress.md            (updated with archive entry)
 │   └── archived/
-│       └── sprint-001_authentication_sprint_20240120_143000/
-│           ├── features.json    (complete sprint-001 data)
-│           └── progress.md      (all sprint-001 sessions)
+│       └── s1_authentication_sprint_20240120_143000/
+│           ├── features.json    (complete s1 data)
+│           └── progress.md      (all s1 sessions)
 ```
 
 ## Usage Patterns

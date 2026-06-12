@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import re
 import shutil
 import sys
 from datetime import datetime
@@ -84,19 +85,47 @@ def archive_sprint_files(
     return archive_features, archive_progress
 
 
+def _entry_matches_sprint(entry: str, sprint_id: str) -> bool:
+    """Check if a session entry belongs to a given sprint by inspecting only the
+    title line and first few metadata lines — NOT the full body text.
+    This prevents false positives when a session body mentions another sprint ID.
+    """
+    lines = entry.strip().split("\n")
+    # Check the title line (first line) and up to the next 10 metadata lines
+    header_lines = lines[:11]
+    header_text = "\n".join(header_lines).lower()
+    return sprint_id.lower() in header_text
+
+
+def _split_entries(content: str) -> List[str]:
+    """Split progress.md content by '## ' H2 headings, returning individual entries.
+    Strips any leading content before the first H2 heading.
+    """
+    parts = re.split(r"^## ", content, flags=re.MULTILINE)
+    entries = []
+    for part in parts[1:]:  # Skip everything before the first H2 heading
+        entries.append("## " + part)
+    return entries
+
+
 def extract_sprint_sessions(progress_path: Path, sprint_id: str) -> str:
-    """Extract sessions related to a specific sprint from progress.md."""
+    """Extract sessions related to a specific sprint from progress.md.
+
+    Splits by all H2 headings (## Session, ## Sprint Planning,
+    ## Parallel Orchestration, etc.) and matches sprint_id only in the
+    title/metadata lines to avoid false positives from body text.
+    """
     with open(progress_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    sessions = content.split("## Session")
-    relevant_sessions = []
+    entries = _split_entries(content)
+    relevant_entries = []
 
-    for session in sessions[1:]:
-        if sprint_id.lower() in session.lower():
-            relevant_sessions.append("## Session" + session)
+    for entry in entries:
+        if _entry_matches_sprint(entry, sprint_id):
+            relevant_entries.append(entry)
 
-    return "\n\n".join(relevant_sessions)
+    return "\n\n".join(relevant_entries)
 
 
 def remove_archived_sprint(features_data: Dict, sprint_id: str) -> Dict:
@@ -108,49 +137,49 @@ def remove_archived_sprint(features_data: Dict, sprint_id: str) -> Dict:
 
 
 def get_progress_template() -> str:
-    """Return the default progress.md template."""
-    return """# Project Progress Log
-
-This file tracks the progress of all agent sessions. Each session should add an entry at the top.
-
----
-
-## Session Template
-
-```markdown
-## Session N - YYYY-MM-DD
-**Agent**: Sprint | Coding
-**Sprint**: [Sprint ID if applicable]
-**Feature**: [Feature ID if applicable]
-
-### Work Completed
-- [What was implemented or done]
-
-### Tests Performed
-- [How changes were verified]
-
-### Issues Encountered
-- [Any blockers, bugs, or challenges]
-
-### Decisions Made
-- [Architectural or design choices]
-
-### Next Steps
-- [Recommended next actions]
-```
-
----
-
-## Sessions
-
-<!-- New sessions should be added above this line -->
-"""
+    """Return the default progress.md template by reading from shared/assets/progress.md."""
+    template_path = Path(__file__).parent.parent / "assets" / "progress.md"
+    if template_path.exists():
+        with open(template_path, "r", encoding="utf-8") as f:
+            return f.read()
+    else:
+        raise FileNotFoundError(f"Progress template not found: {template_path}")
 
 
 def reset_progress_md(progress_path: Path):
     """Reset progress.md to the default template."""
     with open(progress_path, "w", encoding="utf-8") as f:
         f.write(get_progress_template())
+
+
+def remove_sprint_sessions(progress_path: Path, sprint_ids: List[str]):
+    """Remove sessions belonging to the given sprint IDs from progress.md.
+
+    Keeps all entries that do not match any of the given sprint IDs.
+    Matching is done against title/metadata lines only to avoid false positives.
+    """
+    with open(progress_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    entries = _split_entries(content)
+    # Everything before the first H2 heading is the header
+    parts = re.split(r"^## ", content, flags=re.MULTILINE)
+    header = parts[0]
+
+    remaining_entries = []
+
+    for entry in entries:
+        # Keep entries that don't match any of the archived sprint IDs
+        if not any(_entry_matches_sprint(entry, sid) for sid in sprint_ids):
+            remaining_entries.append(entry)
+
+    with open(progress_path, "w", encoding="utf-8") as f:
+        f.write(header)
+        if remaining_entries:
+            # Ensure proper separation between header and remaining entries
+            if not header.endswith("\n\n"):
+                f.write("\n\n" if header.endswith("\n") else "\n\n")
+            f.write("\n\n".join(remaining_entries))
 
 
 def archive_completed_sprints(
@@ -234,9 +263,19 @@ def archive_completed_sprints(
             f"\nUpdated features.json - removed {len(archived_info)} archived sprint(s)"
         )
 
-        if sprints_to_archive:
+        remaining_sprints = features_data.get("sprints", [])
+        if not remaining_sprints:
             reset_progress_md(progress_path)
             print("Reset progress.md to default template")
+        else:
+            archived_sprint_ids = [
+                info["sprint_id"] for info in archived_info
+            ]
+            remove_sprint_sessions(progress_path, archived_sprint_ids)
+            print(
+                f"Removed {len(archived_info)} archived sprint session(s) from progress.md "
+                f"({len(remaining_sprints)} sprint(s) remaining)"
+            )
 
     return archived_info
 

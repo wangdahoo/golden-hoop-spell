@@ -88,6 +88,12 @@ def main():
         default=None,
         help="Project directory (default: current directory). Alias for --output-dir",
     )
+    parser.add_argument(
+        "--force",
+        "-f",
+        action="store_true",
+        help="Force overwrite of existing .ghs tracking files",
+    )
 
     args = parser.parse_args()
 
@@ -95,6 +101,22 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     project_description = args.description or f"{args.project_name} project"
+
+    # Check for existing .ghs files unless --force is passed
+    if not args.force:
+        existing_files = []
+        features_path = output_dir / ".ghs" / "features.json"
+        progress_path = output_dir / ".ghs" / "progress.md"
+        if features_path.exists():
+            existing_files.append(str(features_path.relative_to(output_dir)))
+        if progress_path.exists():
+            existing_files.append(str(progress_path.relative_to(output_dir)))
+        if existing_files:
+            print("Error: The following .ghs files already exist:")
+            for f in existing_files:
+                print(f"  - {f}")
+            print("Use --force to overwrite existing files.")
+            return 1
 
     print(f"=== Initializing GHS ===")
     print(f"Project: {args.project_name}")
