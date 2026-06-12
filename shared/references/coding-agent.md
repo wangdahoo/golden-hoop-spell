@@ -16,7 +16,7 @@
 
 1. **Confirm Location**
    ```bash
-   python3 scripts/resolve_project_dir.py
+   python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
    ```
    Store the output as the absolute project directory. Use it for all reads/writes of `.ghs/features.json` and `.ghs/progress.md`.
 
@@ -35,7 +35,7 @@
    - Dependencies
 
 4. **Verify Project State**
-   Run lint and build commands (see project's AGENTS.md).
+   Run lint and build commands (see project's AGENTS.md, or CLAUDE.md if AGENTS.md does not exist).
 
    **⚠️ If broken, fix existing issues before starting new work.**
 
@@ -118,7 +118,7 @@ Perform these checks in order before starting orchestration:
 
 1. **Confirm Location**
    ```bash
-   python3 scripts/resolve_project_dir.py
+   python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
    ```
    Store the output as the absolute project directory.
 
@@ -143,61 +143,39 @@ Perform these checks in order before starting orchestration:
 
 ### Analysis Phase
 
-#### Step 1: Build Dependency Graph
+#### Step 1: Identify Ready Features and Build Batches
 
-For each pending/blocked feature, check if all dependencies are satisfied:
+Use `parallel_utils.py` to identify ready features and build conflict-free parallel batches. This script reads `.ghs/features.json`, detects dependency cycles, identifies features whose dependencies are all completed, and groups them into batches that respect file-level conflicts:
 
-```python
-def get_ready_features(features):
-    """Get features whose dependencies are all completed."""
-    completed_ids = {f["id"] for f in features if f["status"] == "completed"}
-
-    ready = []
-    for f in features:
-        if f["status"] in ("pending", "blocked"):
-            deps = set(f.get("dependencies", []))
-            if deps.issubset(completed_ids):
-                ready.append(f)
-
-    return ready
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parallel_utils.py \
+  --project-dir "<PROJECT_DIR>" \
+  --max-parallel 5 \
+  --sprint-id "<SPRING_ID>"
 ```
 
-#### Step 2: Detect File Conflicts
+Output is JSON with the following structure:
 
-Group features by file overlap. Features modifying the same files cannot run in parallel:
-
-```python
-def build_parallel_batches(features, max_parallel=5):
-    """
-    Group features into batches respecting file conflicts.
-    Features in the same batch can run in parallel (no file overlap).
-    Batches run sequentially.
-    """
-    batches = []
-    remaining = features.copy()
-
-    while remaining:
-        batch = []
-        files_in_use = set()
-
-        for f in remaining:
-            if len(batch) >= max_parallel:
-                break
-            f_files = set(f.get("files_affected", []))
-            if not f_files & files_in_use:  # No overlap
-                batch.append(f)
-                files_in_use |= f_files
-
-        if not batch:
-            batch = [remaining[0]]
-            files_in_use = set(remaining[0].get("files_affected", []))
-
-        batches.append(batch)
-        for f in batch:
-            remaining.remove(f)
-
-    return batches
+```json
+{
+  "ready_features": [ /* features with all deps completed */ ],
+  "batches": [
+    [ /* batch 1: features with no file overlap */ ],
+    [ /* batch 2: features with no file overlap, but conflict with batch 1 */ ]
+  ],
+  "skipped": [ /* features not ready (deps unmet, wrong status, or in cycles) */ ],
+  "cycles": [ /* detected circular dependency chains */ ],
+  "cycle_feature_ids": [ /* feature IDs involved in any cycle */ ]
+}
 ```
+
+Each feature in the output includes: `id`, `title`, `status`, `files_affected`, and `dependencies`.
+
+Key batching rules (enforced by `parallel_utils.py`):
+- Only `pending` features with all dependencies `completed` are considered ready
+- Features involved in dependency cycles are skipped
+- Features with overlapping `files_affected` are never placed in the same batch
+- Maximum of 5 features per batch (configurable via `--max-parallel`)
 
 #### Step 3: Output Execution Plan
 
@@ -394,7 +372,17 @@ Only update feature status field:
 | `pending` | Not started |
 | `in_progress` | Currently being worked on |
 | `completed` | Fully implemented and tested |
-| `blocked` | Cannot proceed due to blocker |
+| `blocked` | Cannot proceed due to blocker (include `blocked_reason`) |
+
+When a feature is marked `blocked`, include a `blocked_reason` field explaining why:
+
+```json
+{
+  "id": "s1-feat-005",
+  "status": "blocked",
+  "blocked_reason": "Depends on s1-feat-003 which has lint errors"
+}
+```
 
 ## Testing Requirements
 
@@ -409,11 +397,11 @@ Before marking feature complete:
 
 2. **Cross-Platform Testing**
    - Test relevant platforms for the project
-   - See project's AGENTS.md for requirements
+   - See project's AGENTS.md (or CLAUDE.md if AGENTS.md does not exist) for requirements
 
 3. **Technical Testing**
-   - Lint passes (see AGENTS.md for command)
-   - Build succeeds (see AGENTS.md for command)
+   - Lint passes (see AGENTS.md, or CLAUDE.md if AGENTS.md does not exist, for command)
+   - Build succeeds (see AGENTS.md, or CLAUDE.md if AGENTS.md does not exist, for command)
    - Application starts without errors
    - No console errors
 
@@ -466,7 +454,7 @@ See [examples.md](examples.md) for complete examples.
 1. **One Feature Per Session** - Don't try to do too much
 2. **Always Leave Working Code** - Never leave codebase broken
 3. **Follow Acceptance Criteria** - Implement exactly what's specified
-4. **Follow Project Conventions** - See project's AGENTS.md for code style
+4. **Follow Project Conventions** - See project's AGENTS.md (or CLAUDE.md if AGENTS.md does not exist) for code style
 5. **Don't Modify .ghs/features.json Lightly** - Only change feature status
 6. **Commit Frequently** - Enable rollback
 
