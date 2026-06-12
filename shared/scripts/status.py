@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 
@@ -23,7 +24,9 @@ def read_progress_md(filepath: Path, last_n=5):
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
 
-    sessions = content.split("## Session")
+    # Split on any H2 heading so that all session types are captured:
+    # ## Session, ## Sprint Planning, ## Parallel Orchestration, etc.
+    sessions = re.split(r"^## ", content, flags=re.MULTILINE)
     return sessions[1 : last_n + 1] if len(sessions) > 1 else []
 
 
