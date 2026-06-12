@@ -93,6 +93,12 @@ If a feature would take more than 4 hours, break it down further.
 
 Update `.ghs/features.json` with the new sprint and its features. Set sprint status to `in_progress`.
 
+**Validate the structure** by running:
+```bash
+~/.pyenv/shims/python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/validate_structure.py --project-dir "<PROJECT_DIR>"
+```
+If validation fails, report the errors to the user and ask them to fix the issues before proceeding.
+
 Add a planning entry at the **top** of the sessions section in `.ghs/progress.md`:
 
 ```markdown
