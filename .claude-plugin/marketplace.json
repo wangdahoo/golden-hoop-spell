@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "golden-hoop-spell",
-      "source": "./",
+      "source": "./plugin",
       "description": "A Claude Code plugin for sprint-driven project management and code generation"
     }
   ]
