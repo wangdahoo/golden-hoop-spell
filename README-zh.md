@@ -37,7 +37,7 @@
 ### 本地开发
 
 ```bash
-claude --plugin-dir /path/to/golden-hoop-spell
+claude --plugin-dir /path/to/golden-hoop-spell/plugin
 ```
 
 ## 快速开始

@@ -37,7 +37,7 @@ Add the marketplace and install the plugin:
 ### Local Development
 
 ```bash
-claude --plugin-dir /path/to/golden-hoop-spell
+claude --plugin-dir /path/to/golden-hoop-spell/plugin
 ```
 
 ## Quick Start
