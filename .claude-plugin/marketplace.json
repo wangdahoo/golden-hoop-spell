@@ -1,5 +1,6 @@
 {
   "name": "golden-hoop-spell",
+  "description": "Marketplace for the golden-hoop-spell plugin — a skill suite for iterative planning, structured sprints, and disciplined code delivery with Claude Code",
   "owner": {
     "name": "wangdahoo"
   },
