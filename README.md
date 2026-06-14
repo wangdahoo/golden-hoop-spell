@@ -1,5 +1,7 @@
 # Golden Hoop Spell
 
+**English** | [中文](README-zh.md)
+
 > 想让那孙猴子听你的？那得会念紧箍咒才行。
 
 A skill suite that keeps Claude on a leash — iterative planning, structured sprints, and disciplined code delivery.
