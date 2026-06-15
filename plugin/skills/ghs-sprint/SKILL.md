@@ -95,7 +95,7 @@ Update `.ghs/features.json` with the new sprint and its features. Set sprint sta
 
 **Validate the structure** by running:
 ```bash
-~/.pyenv/shims/python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/validate_structure.py --project-dir "<PROJECT_DIR>"
+python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/validate_structure.py --project-dir "<PROJECT_DIR>"
 ```
 If validation fails, report the errors to the user and ask them to fix the issues before proceeding.
 

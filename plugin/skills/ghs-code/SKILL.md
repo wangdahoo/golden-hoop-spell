@@ -30,7 +30,7 @@ The project must have an active sprint with pending features. If not, tell the u
 
 3. **Validate project structure**:
    ```bash
-   ~/.pyenv/shims/python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/validate_structure.py --project-dir "<PROJECT_DIR>"
+   python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/validate_structure.py --project-dir "<PROJECT_DIR>"
    ```
    If validation fails, report errors and stop. Fix issues before proceeding.
 
@@ -133,7 +133,7 @@ When invoked with `--parallel`, implement multiple independent features concurre
 
 1. **Identify ready features and build batches**: Use `parallel_utils.py` to get ready features and conflict-free batches:
    ```bash
-   ~/.pyenv/shims/python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parallel_utils.py --project-dir "<PROJECT_DIR>" --max-parallel <N>
+   python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parallel_utils.py --project-dir "<PROJECT_DIR>" --max-parallel <N>
    ```
    The script outputs JSON with `ready_features`, `batches`, `skipped`, and any `cycles` detected. Use the `batches` output directly for dispatch.
 
