@@ -14,6 +14,14 @@
 
 **Always perform in order:**
 
+0. **Verify python3 works**
+   ```bash
+   python3 --version
+   ```
+   If this errors with "_lazy_pyenv command not found" (or similar), your shell
+   has a half-loaded pyenv lazy loader. Workaround: use the full path
+   `/usr/bin/python3` for all subsequent python invocations in this session.
+
 1. **Confirm Location**
    ```bash
    python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
@@ -254,21 +262,82 @@ For each batch:
 
 ### Verification Phase
 
-For each completed subagent:
+For each background subagent that returns:
 
-1. **Check Completion Signal** — Look for "FEATURE COMPLETE: <id>" in output. If "FEATURE BLOCKED: <id>" found, mark as blocked.
-2. **Verify Code Quality** — Run lint and build commands
-3. **Verify Acceptance Criteria** — Review implementation against each criterion
+1. **Capture raw output and save to disk** for post-mortem debugging:
+   ```
+   <PROJECT_DIR>/.ghs/parallel/<sprint_id>/<feature_id>.raw.attempt<N>
+   ```
+   `attempt<N>` starts at 1 for the first try within a feature; retries increment N.
+
+2. **Invoke the parser helper.**
+
+   > **You MUST copy this command verbatim, only replacing the `<placeholders>`. Do NOT grep the subagent output yourself — the helper is the single source of truth for completion-signal extraction.**
+
+   ```bash
+   python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_completion_signal.py \
+     --feature-id <feature_id> \
+     --input-file <PROJECT_DIR>/.ghs/parallel/<sprint_id>/<feature_id>.raw.attempt<N> \
+     --min-length 50
+   ```
+
+3. **Branch on `status` (read from JSON, do not re-parse the text):**
+   - **`completed`** → Update `.ghs/features.json` for `<feature_id>` with `status: "completed"`. Run lint/build. Verify acceptance criteria. Record result and proceed.
+   - **`blocked`** → Update `.ghs/features.json` with `status: "blocked"` and `blocked_reason: <reason from JSON>`. Record result and proceed.
+   - **`unknown`** with `retry_count < MAX_RETRY (=1)` → Increment `retry_count`, re-dispatch the subagent with the original prompt plus the Format Recovery appendix. Save next raw to `<feature_id>.raw.attempt<N+1>`. Return to step 1.
+   - **`unknown`** with `retry_count >= MAX_RETRY` → Use AskUserQuestion per the User Decision Handling table. **Never silently hang on an unparseable response.**
+
 4. **Record Result**:
    ```python
    results = {
        "feature_id": {
-           "status": "completed" | "blocked",
+           "status": "completed" | "blocked" | "unknown",
            "reason": None | "<failure_reason>",
+           "strategy": "<exact_signal | case_insensitive | natural_language | none>",
+           "raw_file": "<path/to/feature_id>.raw.attempt<N>",
            "files_changed": ["list", "of", "files"]
        }
    }
    ```
+
+#### Format Recovery (retry appendix)
+
+When retrying a subagent whose previous output could not be parsed, append this block verbatim to the original prompt (replace `<feature_id>` with the actual ID):
+
+```
+## IMPORTANT: Previous Output Format Issue
+Your previous response did not contain the required completion signal.
+The dispatcher could not determine whether the feature is complete.
+
+This time you MUST end your response with EXACTLY ONE of:
+  - "FEATURE COMPLETE: <feature_id>"  (if successful)
+  - "FEATURE BLOCKED: <feature_id> - <reason>"  (if blocked)
+
+The signal line must:
+1. Be on its own line
+2. Use uppercase FEATURE
+3. Use the exact feature_id given above
+4. For BLOCKED, include a one-line reason after the dash
+
+Do NOT use:
+- "Feature Complete" (lowercase)
+- "FEATURE COMPLETED" (extra D)
+- "The feature is complete" (natural language)
+- Chinese variants like "特性完成"
+```
+
+#### User Decision Handling
+
+When retry is exhausted (`retry_count >= MAX_RETRY`) and the parser still cannot determine the outcome, use AskUserQuestion with these four options:
+
+| Option | Dispatcher behavior | File side-effects | When available |
+|--------|---------------------|-------------------|----------------|
+| **Retry once more** | Increment `retry_count`, re-dispatch with Format Recovery appendix | New `<feature_id>.raw.attempt<N+1>` | Always available |
+| **Manually mark as completed** | Update `.ghs/features.json` with `status: "completed"`. Annotate `.ghs/progress.md` noting "manually marked after format deviation retry" | `.ghs/features.json` written; `.ghs/progress.md` annotated | Always available — but only choose this after manually verifying (commit log + file diff) |
+| **Manually mark as blocked** | Update `.ghs/features.json` with `status: "blocked"` + user-supplied `blocked_reason`. Annotate `.ghs/progress.md` | `.ghs/features.json` written; `.ghs/progress.md` annotated | Always available |
+| **Abort this feature, continue with others** | Leave `.ghs/features.json` for this feature at `status: "pending"`. Annotate `.ghs/progress.md`. Continue with other features in the batch | `.ghs/features.json` unchanged for this feature; `.ghs/progress.md` annotated | Always available (parallel mode only) |
+
+The AskUserQuestion prompt must show the parser's `status`, `strategy`, and `warnings` from the most recent attempt, list the four options, and include the path to the most recent `.raw.attempt<N>` file so the user can inspect the raw subagent output before deciding.
 
 ### State Update Phase
 
