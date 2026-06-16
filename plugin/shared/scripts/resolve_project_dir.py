@@ -6,7 +6,7 @@ the .ghs project tracking folder. This ensures agents always write to the correc
 regardless of their current working directory.
 
 Usage:
-    python3 scripts/resolve_project_dir.py [--start-dir DIR]
+    command python3 scripts/resolve_project_dir.py [--start-dir DIR]
 
 Exit codes:
     0 - Project directory found, printed to stdout

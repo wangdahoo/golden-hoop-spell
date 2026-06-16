@@ -6,7 +6,7 @@ Round 2 review (multi_kind_pairs, nested_code_fence, additional_files_read,
 review_with_verdict_pass, review_with_verdict_fail).
 
 Run directly:
-    python3 plugin/shared/scripts/test_parse_delimited_output.py
+    command python3 plugin/shared/scripts/test_parse_delimited_output.py
 
 No pytest dependency. Uses only the standard unittest module.
 """

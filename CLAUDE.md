@@ -27,6 +27,7 @@ Historical plan documents under `docs/ghs/plans/` reference the pre-move `skills
 - Feature IDs follow `s{N}-feat-{NNN}` format
 - Commit messages use conventional format: `<type>(<scope>): <description>`
 - Each session logs to `.ghs/progress.md` at the top of the sessions section
+- **Python invocations use `command python3`, not bare `python3`**: Claude Code's shell snapshot systematically drops single-underscore zsh functions (`_xxx`), which breaks pyenv/nvm lazy loaders — bare `python3` resolves to a dangling wrapper that exits 127 with `_lazy_pyenv command not found`. `command python3` bypasses shell function lookup and resolves via PATH. This applies to all SKILL.md / reference doc / docstring examples that invoke a Python script.
 
 ## Critical Rules
 

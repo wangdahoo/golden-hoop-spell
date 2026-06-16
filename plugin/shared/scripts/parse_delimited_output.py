@@ -9,12 +9,12 @@ plus verdict / completion-signal fields so the dispatcher never has to
 re-parse the text itself.
 
 Usage:
-    python3 parse_delimited_output.py --kind plan --stdin < raw.txt
-    python3 parse_delimited_output.py --kind review --input-file path/to/raw.txt \
+    command python3 parse_delimited_output.py --kind plan --stdin < raw.txt
+    command python3 parse_delimited_output.py --kind review --input-file path/to/raw.txt \
         --completion-signal "REVIEW COMPLETE" --min-length 150
-    python3 parse_delimited_output.py --kind plan --input-string "..." \
+    command python3 parse_delimited_output.py --kind plan --input-string "..." \
         --completion-signal "PLAN DESIGN COMPLETE" --min-length 300
-    python3 parse_delimited_output.py --start-token "<BEGIN>" --end-token "<END>" \
+    command python3 parse_delimited_output.py --start-token "<BEGIN>" --end-token "<END>" \
         --input-string "..."
 
 Output: a single JSON object on stdout with the following shape:

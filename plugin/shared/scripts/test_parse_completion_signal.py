@@ -7,7 +7,7 @@ language / thinking-tag wrapping / markdown bold wrapping / forgot-to-emit /
 empty input / wrong feature_id / multi-feature coexistence.
 
 Run directly:
-    python3 plugin/shared/scripts/test_parse_completion_signal.py
+    command python3 plugin/shared/scripts/test_parse_completion_signal.py
 
 No pytest dependency. Uses only the standard unittest module.
 """

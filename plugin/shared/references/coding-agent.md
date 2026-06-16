@@ -14,17 +14,9 @@
 
 **Always perform in order:**
 
-0. **Verify python3 works**
-   ```bash
-   python3 --version
-   ```
-   If this errors with "_lazy_pyenv command not found" (or similar), your shell
-   has a half-loaded pyenv lazy loader. Workaround: use the full path
-   `/usr/bin/python3` for all subsequent python invocations in this session.
-
 1. **Confirm Location**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
    ```
    Store the output as the absolute project directory. Use it for all reads/writes of `.ghs/features.json` and `.ghs/progress.md`.
 
@@ -126,7 +118,7 @@ Perform these checks in order before starting orchestration:
 
 1. **Confirm Location**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
    ```
    Store the output as the absolute project directory.
 
@@ -156,7 +148,7 @@ Perform these checks in order before starting orchestration:
 Use `parallel_utils.py` to identify ready features and build conflict-free parallel batches. This script reads `.ghs/features.json`, detects dependency cycles, identifies features whose dependencies are all completed, and groups them into batches that respect file-level conflicts:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parallel_utils.py \
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parallel_utils.py \
   --project-dir "<PROJECT_DIR>" \
   --max-parallel 5 \
   --sprint-id "<SPRING_ID>"
@@ -275,7 +267,7 @@ For each background subagent that returns:
    > **You MUST copy this command verbatim, only replacing the `<placeholders>`. Do NOT grep the subagent output yourself — the helper is the single source of truth for completion-signal extraction.**
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_completion_signal.py \
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_completion_signal.py \
      --feature-id <feature_id> \
      --input-file <PROJECT_DIR>/.ghs/parallel/<sprint_id>/<feature_id>.raw.attempt<N> \
      --min-length 50

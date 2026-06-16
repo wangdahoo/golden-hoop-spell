@@ -11,7 +11,7 @@ Archive **all** sprints, including those that are in-progress, planning, or on-h
 
 Resolve the project directory:
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
 ```
 
 ## Workflow
@@ -20,7 +20,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
 
 Show the user what will be archived:
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --list --force --project-dir "<PROJECT_DIR>"
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --list --force --project-dir "<PROJECT_DIR>"
 ```
 
 ### Step 2: Confirm with User
@@ -42,7 +42,7 @@ Do NOT proceed without explicit user confirmation.
 
 After confirmation:
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --force --project-dir "<PROJECT_DIR>"
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --force --project-dir "<PROJECT_DIR>"
 ```
 
 This will:

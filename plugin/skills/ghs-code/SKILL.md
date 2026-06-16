@@ -10,14 +10,6 @@ Implement features from the current sprint. Two modes: **single feature** (defau
 
 ## Prerequisites
 
-**Verify python3 works** before any other step:
-```bash
-python3 --version
-```
-If this errors with "_lazy_pyenv command not found" (or similar), your shell
-has a half-loaded pyenv lazy loader. Workaround: use the full path
-`/usr/bin/python3` for all subsequent python invocations in this session.
-
 The project must have an active sprint with pending features. If not, tell the user to run `/ghs:sprint` first.
 
 ## Session Protocol
@@ -26,7 +18,7 @@ The project must have an active sprint with pending features. If not, tell the u
 
 1. **Resolve project directory**:
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
    ```
    Store the output as `PROJECT_DIR` for all subsequent reads/writes.
 
@@ -38,7 +30,7 @@ The project must have an active sprint with pending features. If not, tell the u
 
 3. **Validate project structure**:
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/validate_structure.py --project-dir "<PROJECT_DIR>"
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/validate_structure.py --project-dir "<PROJECT_DIR>"
    ```
    If validation fails, report errors and stop. Fix issues before proceeding.
 
@@ -141,7 +133,7 @@ When invoked with `--parallel`, implement multiple independent features concurre
 
 1. **Identify ready features and build batches**: Use `parallel_utils.py` to get ready features and conflict-free batches:
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parallel_utils.py --project-dir "<PROJECT_DIR>" --max-parallel <N>
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parallel_utils.py --project-dir "<PROJECT_DIR>" --max-parallel <N>
    ```
    The script outputs JSON with `ready_features`, `batches`, `skipped`, and any `cycles` detected. Use the `batches` output directly for dispatch.
 
@@ -212,7 +204,7 @@ For each background subagent that returns:
    > **You MUST copy this command verbatim, only replacing the `<placeholders>`. Do NOT grep the subagent output yourself — the helper is the single source of truth for completion-signal extraction.**
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_completion_signal.py \
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_completion_signal.py \
      --feature-id <feature_id> \
      --input-file <PROJECT_DIR>/.ghs/parallel/<sprint_id>/<feature_id>.raw.attempt<N> \
      --min-length 50

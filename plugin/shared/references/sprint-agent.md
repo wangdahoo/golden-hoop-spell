@@ -19,9 +19,9 @@
 Before creating a new sprint, archive completed sprints:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --list --project-dir "<PROJECT_DIR>"      # List completed sprints
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --dry-run --project-dir "<PROJECT_DIR>"   # Preview archive
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --project-dir "<PROJECT_DIR>"             # Archive
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --list --project-dir "<PROJECT_DIR>"      # List completed sprints
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --dry-run --project-dir "<PROJECT_DIR>"   # Preview archive
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --project-dir "<PROJECT_DIR>"             # Archive
 ```
 
 Archived sprints move to `.ghs/archived/`.

@@ -29,14 +29,6 @@ User describes requirement
 
 ## Prerequisites
 
-**Verify python3 works** before any other step:
-```bash
-python3 --version
-```
-If this errors with "_lazy_pyenv command not found" (or similar), your shell
-has a half-loaded pyenv lazy loader. Workaround: use the full path
-`/usr/bin/python3` for all subsequent python invocations in this session.
-
 - Project directory must be initialized (`.ghs/` directory exists). If not, tell the user to run `/ghs:init` first.
 - User must provide a requirement description. If not provided, ask via AskUserQuestion.
 
@@ -99,7 +91,7 @@ Pass criteria: **zero severe or medium issues**. Only optimization items are acc
 
 1. **Resolve project directory**:
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
    ```
    Store output as `PROJECT_DIR`.
 
@@ -152,7 +144,7 @@ Spawn an Explore subagent (with haiku model) to scan the project and create a co
 > **You MUST copy this command verbatim, only replacing the `<placeholders>`. Do NOT parse the subagent output yourself — the helper is the single source of truth for delimiter extraction.**
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_delimited_output.py \
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_delimited_output.py \
   --kind context_snapshot \
   --input-file <PROJECT_DIR>/.ghs/plans/<context_file>.raw[_retry<T>] \
   --min-length 100
@@ -269,7 +261,7 @@ If you read files beyond the context snapshot, list them as: "ADDITIONAL FILES R
    > **You MUST copy this command verbatim, only replacing the `<placeholders>`. Do NOT parse the subagent output yourself — the helper is the single source of truth for delimiter extraction.**
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_delimited_output.py \
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_delimited_output.py \
      --kind plan \
      --input-file <PROJECT_DIR>/.ghs/plans/<plan_file>.raw.round<R>[_retry<T>] \
      --completion-signal "PLAN DESIGN COMPLETE" \
@@ -381,7 +373,7 @@ If you encounter a judgment you cannot resolve, output: "QUESTION: <specific que
    > **You MUST copy this command verbatim, only replacing the `<placeholders>`. Do NOT parse the subagent output yourself — the helper is the single source of truth for delimiter extraction AND for the verdict.**
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_delimited_output.py \
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_delimited_output.py \
      --kind review \
      --input-file <PROJECT_DIR>/.ghs/plans/<review_file>.raw.round<R>[_retry<T>] \
      --completion-signal "REVIEW COMPLETE" \
