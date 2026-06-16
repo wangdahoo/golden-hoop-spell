@@ -29,6 +29,14 @@ User describes requirement
 
 ## Prerequisites
 
+**Verify python3 works** before any other step:
+```bash
+python3 --version
+```
+If this errors with "_lazy_pyenv command not found" (or similar), your shell
+has a half-loaded pyenv lazy loader. Workaround: use the full path
+`/usr/bin/python3` for all subsequent python invocations in this session.
+
 - Project directory must be initialized (`.ghs/` directory exists). If not, tell the user to run `/ghs:init` first.
 - User must provide a requirement description. If not provided, ask via AskUserQuestion.
 

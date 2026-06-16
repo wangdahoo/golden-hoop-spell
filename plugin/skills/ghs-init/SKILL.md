@@ -9,6 +9,14 @@ Set up the project with `.ghs/features.json` and `.ghs/progress.md` so the ghs s
 
 ## Setup
 
+**Verify python3 works** before any other step:
+```bash
+python3 --version
+```
+If this errors with "_lazy_pyenv command not found" (or similar), your shell
+has a half-loaded pyenv lazy loader. Workaround: use the full path
+`/usr/bin/python3` for all subsequent python invocations in this session.
+
 Run the init script from the project directory:
 
 ```bash

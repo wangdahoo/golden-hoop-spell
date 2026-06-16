@@ -11,6 +11,14 @@ Break down requirements into atomic features with acceptance criteria, dependenc
 
 The project must be initialized (have `.ghs/features.json` and `.ghs/progress.md`). If not, tell the user to run `/ghs:init` first.
 
+**Verify python3 works** before any other step:
+```bash
+python3 --version
+```
+If this errors with "_lazy_pyenv command not found" (or similar), your shell
+has a half-loaded pyenv lazy loader. Workaround: use the full path
+`/usr/bin/python3` for all subsequent python invocations in this session.
+
 Resolve the project directory:
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
