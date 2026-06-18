@@ -516,7 +516,13 @@ If you encounter a judgment you cannot resolve, output: "QUESTION: <specific que
      - Write `content` to `<review_file>` (with the warning comment if `fallback_used`).
      - Check round count:
        - `round < max_rounds` -> Update status to `revising`, increment round, go back to Phase 1.
-       - `round >= max_rounds` -> Notify the user that the max round limit is reached, use AskUserQuestion to show the current review result and ask whether to accept.
+       - `round >= max_rounds` AND `max_rounds_breaches < MAX_BREACHES` -> Max round limit reached. Use AskUserQuestion to present three options (symmetric with Phase 3 reject @ max_rounds):
+         1. **Continue revising anyway** (one-shot breach): Increment `max_rounds_breaches`, increment `round`, go back to Phase 1. Show the user the review report so they understand what triggered the FAIL.
+         2. **Accept the current plan despite the FAIL**: Proceed to Phase 4 with the current plan file (the user takes responsibility for the unfixed issues). Add a marker line at the top of the plan file: `<!-- WARNING: accepted with unfixed issues (round <R>, breaches=<B>): Severe=<X> Medium=<Y> -->` (see Phase 4 Finalization for handling).
+         3. **Abort**: Set status to `aborted`, stop.
+       - `round >= max_rounds` AND `max_rounds_breaches >= MAX_BREACHES` -> Hard cap reached. Use AskUserQuestion to present only two options (continue breach not available):
+         1. **Accept the current plan despite the FAIL**: Same marker as above (see Phase 4 Finalization).
+         2. **Abort**.
    - **`ok` or `fallback_used`** with `verdict == null`: Treat as format deviation — the reviewer's signal line did not contain `Verdict: PASS|FAIL`. Fall through to the retry path below.
    - **`empty` or `malformed`** (or `verdict == null`) with `retry_count < MAX_RETRY (=1)`: Increment `retry_count`, re-dispatch the reviewer with the original prompt plus the [Format Recovery](#format-recovery) appendix for review. Then return to step 1 (writing the next raw to `<review_file>.raw.round<R>_retry<T>`).
    - **`empty` or `malformed`** (or `verdict == null`) with `retry_count >= MAX_RETRY`: Use AskUserQuestion per [## User Decision Handling](#user-decision-handling).
