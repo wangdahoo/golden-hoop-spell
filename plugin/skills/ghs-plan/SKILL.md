@@ -66,12 +66,20 @@ State is tracked via `.ghs/plans/{date}-{slug}-status.json`:
   "plan_file": "{date}-{slug}.md",
   "context_file": "{date}-{slug}-context.md",
   "round": 1,
-  "status": "designing | reviewing | revising | pending_approval | approved | rejected",
+  "status": "designing | reviewing | revising | pending_approval | approved | rejected | aborted",
   "max_rounds": 5,
+  "max_rounds_breaches": 0,
+  "accepted_with_fail": false,
+  "keep_raw_on_success": false,
   "created_at": "YYYY-MM-DDTHH:mm:ss",
   "updated_at": "YYYY-MM-DDTHH:mm:ss"
 }
 ```
+
+**Field descriptions**:
+- `max_rounds_breaches` (int, default `0`): Incremented by 1 each time the user chooses "Continue revising anyway" at Phase 2 FAIL @ max_rounds or Phase 3 reject @ max_rounds. When `max_rounds_breaches >= MAX_BREACHES` (default `2`, defined in [## Format Recovery](#format-recovery) → **Constants**), the continue option is removed from the menu in both Phase 2 and Phase 3; the user can only accept or abort. This enforces the hard cap that guarantees dispatcher termination in at most `max_rounds + MAX_BREACHES` rounds.
+- `accepted_with_fail` (bool, default `false`): Set to `true` during Phase 4 finalization if the plan header contains a `WARNING: accepted with unfixed issues` marker (from Phase 2 "Accept despite FAIL"). After-the-fact audit via `grep '"accepted_with_fail": true' .ghs/plans/*-status.json` reveals all plans that passed with unfixed issues. The `status` field itself remains `"approved"` (this is an independent flag, not a new status enum value).
+- `keep_raw_on_success` (bool, default `false`): When set to `true`, the dispatcher additionally writes the subagent response to `<file>.raw` (overwriting) even on successful parse, for post-mortem debugging. Use only for hard-to-debug sessions where the user suspects logic errors in the plan despite it passing format validation. Normal sessions keep this `false` to keep the main directory clean.
 
 ### Issue Severity Levels (Reviewer Must Use)
 
