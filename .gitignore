@@ -7,3 +7,4 @@ ghs-workspace/*
 !ghs-workspace/CLAUDE.md
 .ghs
 __pycache__/
+.codegraph/

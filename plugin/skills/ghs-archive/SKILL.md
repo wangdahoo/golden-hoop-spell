@@ -11,7 +11,7 @@ Move completed sprints from the active `.ghs/features.json` to `.ghs/archived/`,
 
 Resolve the project directory:
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
 ```
 
 ## Workflow
@@ -19,7 +19,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
 ### Step 1: List Completed Sprints
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --list --project-dir "<PROJECT_DIR>"
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --list --project-dir "<PROJECT_DIR>"
 ```
 
 Show the user which sprints are eligible for archiving (status: `completed`).
@@ -27,13 +27,13 @@ Show the user which sprints are eligible for archiving (status: `completed`).
 ### Step 2: Preview (optional)
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --dry-run --project-dir "<PROJECT_DIR>"
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --dry-run --project-dir "<PROJECT_DIR>"
 ```
 
 ### Step 3: Archive
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --project-dir "<PROJECT_DIR>"
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --project-dir "<PROJECT_DIR>"
 ```
 
 This will:

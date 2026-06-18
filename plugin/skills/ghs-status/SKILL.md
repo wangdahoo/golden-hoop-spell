@@ -9,14 +9,15 @@ Display the current state of the ghs managed project: active sprint, feature com
 
 ## Usage
 
+Resolve the project directory:
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
 ```
 
 Then run the status script:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/status.py --project-dir "<PROJECT_DIR>"
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/status.py --project-dir "<PROJECT_DIR>"
 ```
 
 ## What It Shows

@@ -127,6 +127,47 @@ This is the core mechanism. Every piece of feedback must carry a severity label.
 {Optional: overall assessment, highlights, or other remarks}
 ```
 
+### Output Format Requirements
+
+The dispatcher extracts your review by searching for the literal delimiters `<<<REVIEW_START>>>` and `<<<REVIEW_END>>>`, and reads the verdict from the line beginning with `REVIEW COMPLETE`. If you deviate from the delimiter protocol, the dispatcher must invoke a fallback parser, retry the review, or ask the user — wasting a round and slowing the planning loop. To keep the loop tight:
+
+1. Output the delimiters EXACTLY as written: `<<<REVIEW_START>>>` on its own line, `<<<REVIEW_END>>>` on its own line.
+2. Put ALL review report content between them.
+3. **Do NOT wrap the delimiters or the content in a code fence** (no ` ``` ` markers around them).
+4. **Do NOT translate, transliterate, or modify the delimiter strings** — no `《《REVIEW_START》》`, no `<<REVIEW_START>>`, no `<<< REVIEW_START >>>`.
+5. End with the literal completion signal `REVIEW COMPLETE | Verdict: PASS|FAIL | Severe: X Medium: Y Optimization: Z` on its own line — the dispatcher reads the verdict from this line via a parser; if it's missing or malformed, the review will be retried.
+6. Use the literal ASCII characters `<`, `>`, `_`, `|`.
+
+#### Correct example
+
+~~~
+<<<REVIEW_START>>>
+# Technical Plan Review Report
+... review report content ...
+<<<REVIEW_END>>>
+REVIEW COMPLETE | Verdict: PASS | Severe: 0 Medium: 0 Optimization: 1
+~~~
+
+#### Incorrect examples (DO NOT DO THESE)
+
+- Wrapping in a code fence:
+
+  ~~~
+  ```
+  <<<REVIEW_START>>>
+  ... review report ...
+  <<<REVIEW_END>>>
+  ```
+  ~~~
+
+  The parser falls back to a less reliable strategy and may emit warnings.
+
+- Translated punctuation: `《《REVIEW_START》》...《《REVIEW_END》》` — the parser may fall back or fail entirely.
+
+- Missing or extra brackets: `<<REVIEW_START>>` / `<<<<REVIEW_START>>>>` — same problem.
+
+- Completion signal without `Verdict: PASS|FAIL` — the dispatcher cannot determine the verdict and will retry.
+
 ## Review Checklist
 
 These are the dimensions you should check systematically:

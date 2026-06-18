@@ -13,7 +13,7 @@ The project must be initialized (have `.ghs/features.json` and `.ghs/progress.md
 
 Resolve the project directory:
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
 ```
 
 ## Planning Process
@@ -24,12 +24,12 @@ Before creating a new sprint, check for completed sprints to archive.
 
 **1a. List completed sprints:**
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --list --project-dir "<PROJECT_DIR>"
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --list --project-dir "<PROJECT_DIR>"
 ```
 
 **1b. If completed sprints exist**, offer to archive them before proceeding:
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --project-dir "<PROJECT_DIR>"
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --project-dir "<PROJECT_DIR>"
 ```
 This archives all completed sprints at once — the script determines which ones to archive based on their status.
 
@@ -95,7 +95,7 @@ Update `.ghs/features.json` with the new sprint and its features. Set sprint sta
 
 **Validate the structure** by running:
 ```bash
-~/.pyenv/shims/python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/validate_structure.py --project-dir "<PROJECT_DIR>"
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/validate_structure.py --project-dir "<PROJECT_DIR>"
 ```
 If validation fails, report the errors to the user and ask them to fix the issues before proceeding.
 

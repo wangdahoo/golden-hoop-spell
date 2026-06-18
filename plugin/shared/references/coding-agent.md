@@ -16,7 +16,7 @@
 
 1. **Confirm Location**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
    ```
    Store the output as the absolute project directory. Use it for all reads/writes of `.ghs/features.json` and `.ghs/progress.md`.
 
@@ -118,7 +118,7 @@ Perform these checks in order before starting orchestration:
 
 1. **Confirm Location**
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
    ```
    Store the output as the absolute project directory.
 
@@ -148,7 +148,7 @@ Perform these checks in order before starting orchestration:
 Use `parallel_utils.py` to identify ready features and build conflict-free parallel batches. This script reads `.ghs/features.json`, detects dependency cycles, identifies features whose dependencies are all completed, and groups them into batches that respect file-level conflicts:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parallel_utils.py \
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parallel_utils.py \
   --project-dir "<PROJECT_DIR>" \
   --max-parallel 5 \
   --sprint-id "<SPRING_ID>"
@@ -205,35 +205,25 @@ For each feature, spawn a subagent with this prompt structure:
 Implement ONE feature for this project.
 
 ## CONTEXT RESET - READ THIS FIRST
-This is an isolated task. You MUST:
-1. DISREGARD any context from previous conversations or tasks
-2. NOT assume any prior knowledge about the project state
-3. Read all necessary files fresh to understand current state
-4. Start with a clean mental state - this is your ONLY task
-
-## Feature Details
-- **ID**: <feature_id>
-- **Title**: <title>
-- **Description**: <description>
-- **Acceptance Criteria**:
-  <criteria_list>
-- **Technical Notes**: <technical_notes>
-- **Files to Modify**: <files_affected>
+This is an isolated task. Disregard prior context, assume nothing, read files fresh, start clean.
 
 ## Your Task
-1. Read .ghs/features.json and .ghs/progress.md to understand project context
-2. Implement the feature following the coding-agent.md guidelines
-3. Test all acceptance criteria
-4. Run lint/build to verify no breakage
-5. Commit your changes (only implementation files — do NOT modify .ghs/ files): list each modified file explicitly with `git add`, then commit with message: feat(<scope>): <brief description> (Feature: <feature_id>)
+1. Open `<PROJECT_DIR>/.ghs/features.json`, find your feature by `id == "<feature_id>"` under `sprints[].features[]`. Read its `description`/`acceptance_criteria`/`technical_notes`/`files_affected` — these are your source of truth, not the title.
+2. If the containing sprint has a `plan_ref` field, open that plan file (relative to project root) and read any sections your `technical_notes` references (e.g. "参考 plan §3.3 ..." means read §3.3). If `plan_ref` is missing or the file does not exist, log a one-line warning and proceed with `technical_notes` verbatim.
+3. Read `<PROJECT_DIR>/.ghs/progress.md` for recent project context.
+4. Implement the feature following the coding-agent.md guidelines; verify all `acceptance_criteria` are met.
+5. Run lint/build, then make a **single** commit (stage all modified implementation files with `git add`; do NOT commit `.ghs/*` files) with message: `feat(<scope>): <brief description> (Feature: <feature_id>)`.
+
+## Feature ID
+<feature_id>
 
 ## Critical Rules
-- Do NOT modify .ghs/features.json or .ghs/progress.md - the orchestrator will update these after your commit
-- Focus ONLY on this feature - do not modify unrelated code
-- Ensure the codebase remains in a working state
-- Signal completion by stating "FEATURE COMPLETE: <feature_id>" at the end
-- If you cannot complete the feature, state "FEATURE BLOCKED: <feature_id> - <reason>"
+- Do NOT modify `.ghs/` files. You may READ `features.json` but MUST NOT write.
+- Focus ONLY on this feature.
+- End with EXACTLY ONE signal: `FEATURE COMPLETE: <feature_id>` or `FEATURE BLOCKED: <feature_id> - <reason>`.
 ```
+
+The orchestrator MUST substitute `<PROJECT_DIR>` (from `resolve_project_dir.py`) and `<feature_id>` (from the batch feature list) into the prompt before spawning. The prompt contains NO inline feature details — the subagent reads them from `.ghs/features.json` per Task step 1. Note: the prompt does NOT contain a `<sprint_id>` placeholder — the subagent locates its feature by `id == "<feature_id>"` across `sprints[].features[]`, so the orchestrator does not need to pass `sprint_id`.
 
 Use the Agent tool to spawn subagents:
 
@@ -254,21 +244,92 @@ For each batch:
 
 ### Verification Phase
 
-For each completed subagent:
+For each background subagent that returns:
 
-1. **Check Completion Signal** — Look for "FEATURE COMPLETE: <id>" in output. If "FEATURE BLOCKED: <id>" found, mark as blocked.
-2. **Verify Code Quality** — Run lint and build commands
-3. **Verify Acceptance Criteria** — Review implementation against each criterion
+1. **Capture raw output and save to disk** for post-mortem debugging:
+   ```
+   <PROJECT_DIR>/.ghs/parallel/<sprint_id>/<feature_id>.raw.attempt<N>
+   ```
+   `attempt<N>` starts at 1 for the first try within a feature; retries increment N.
+
+2. **Invoke the parser helper.**
+
+   > **You MUST copy this command verbatim, only replacing the `<placeholders>`. Do NOT grep the subagent output yourself — the helper is the single source of truth for completion-signal extraction.**
+
+   ```bash
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_completion_signal.py \
+     --feature-id <feature_id> \
+     --input-file <PROJECT_DIR>/.ghs/parallel/<sprint_id>/<feature_id>.raw.attempt<N> \
+     --min-length 50
+   ```
+
+3. **Branch on `status` (read from JSON, do not re-parse the text):**
+   - **`completed`**:
+     1. **Run the commit/files sanity check** (前置门 — pass 才允许写 features.json):
+        - 从 `<PROJECT_DIR>/.ghs/features.json` 读 feature `<feature_id>` 的 `files_affected` 字段，得 `expected_files`（list）。
+        - **立即检查 expected_files 是否为空**：若 `expected_files == []`（features.json 中该字段缺失或为空 list），**整个 sanity check 跳过**，视为通过，日志记录 `"sanity check skipped: feature <feature_id> has no files_affected in features.json"`。此跳过分支**必须在读 git log 之前判断**，不得合并到下面的空集检查。
+        - 读 subagent 的 commit log（`git log --since=<dispatch_start_iso> --name-only --pretty=format:"%H %s"`，dispatch_start_iso 见下方备注），得 `actual_files`（list，去重）。
+        - 计算 `intersection = set(expected_files) ∩ set(actual_files)`。
+        - 如果 `intersection` 为空（即所有 commit 加起来一个期望文件都没碰），**不要标记 feature 完成**，触发 Format Recovery retry，appendix 中加一句：`Your commit did not touch any file listed in this feature's files_affected in features.json. Did you read features.json to find your feature's expected files?`。retry 后仍空则走 User Decision Handling。**此分支不写 features.json。**
+        - 如果 `intersection` 非空（或 sanity check 走 skip 分支），进入步骤 2。
+     2. Update `.ghs/features.json` for `<feature_id>` with `status: "completed"`. Run lint/build to verify code quality. Verify acceptance criteria. Proceed to next feature.
+
+     **备注**：`dispatch_start_iso` 是 orchestrator 在 Dispatch Phase spawn 该 subagent 那一刻记录的 ISO 时间戳（`datetime.now(timezone.utc).isoformat()`），用于时间窗 git log 查询，覆盖 subagent 可能的多 commit。
+   - **`blocked`** → Update `.ghs/features.json` with `status: "blocked"` and `blocked_reason: <reason from JSON>`. Record result and proceed.
+   - **`unknown`** with `retry_count < MAX_RETRY (=1)` → Increment `retry_count`, re-dispatch the subagent with the original prompt plus the Format Recovery appendix. Save next raw to `<feature_id>.raw.attempt<N+1>`. Return to step 1.
+   - **`unknown`** with `retry_count >= MAX_RETRY` → Use AskUserQuestion per the User Decision Handling table. **Never silently hang on an unparseable response.**
+
 4. **Record Result**:
    ```python
    results = {
        "feature_id": {
-           "status": "completed" | "blocked",
+           "status": "completed" | "blocked" | "unknown",
            "reason": None | "<failure_reason>",
+           "strategy": "<exact_signal | case_insensitive | natural_language | none>",
+           "raw_file": "<path/to/feature_id>.raw.attempt<N>",
            "files_changed": ["list", "of", "files"]
        }
    }
    ```
+
+#### Format Recovery (retry appendix)
+
+When retrying a subagent whose previous output could not be parsed, append this block verbatim to the original prompt (replace `<feature_id>` with the actual ID):
+
+```
+## IMPORTANT: Previous Output Format Issue
+Your previous response did not contain the required completion signal.
+The dispatcher could not determine whether the feature is complete.
+
+This time you MUST end your response with EXACTLY ONE of:
+  - "FEATURE COMPLETE: <feature_id>"  (if successful)
+  - "FEATURE BLOCKED: <feature_id> - <reason>"  (if blocked)
+
+The signal line must:
+1. Be on its own line
+2. Use uppercase FEATURE
+3. Use the exact feature_id given above
+4. For BLOCKED, include a one-line reason after the dash
+
+Do NOT use:
+- "Feature Complete" (lowercase)
+- "FEATURE COMPLETED" (extra D)
+- "The feature is complete" (natural language)
+- Chinese variants like "特性完成"
+```
+
+#### User Decision Handling
+
+When retry is exhausted (`retry_count >= MAX_RETRY`) and the parser still cannot determine the outcome, use AskUserQuestion with these four options:
+
+| Option | Dispatcher behavior | File side-effects | When available |
+|--------|---------------------|-------------------|----------------|
+| **Retry once more** | Increment `retry_count`, re-dispatch with Format Recovery appendix | New `<feature_id>.raw.attempt<N+1>` | Always available |
+| **Manually mark as completed** | Update `.ghs/features.json` with `status: "completed"`. Annotate `.ghs/progress.md` noting "manually marked after format deviation retry" | `.ghs/features.json` written; `.ghs/progress.md` annotated | Always available — but only choose this after manually verifying (commit log + file diff) |
+| **Manually mark as blocked** | Update `.ghs/features.json` with `status: "blocked"` + user-supplied `blocked_reason`. Annotate `.ghs/progress.md` | `.ghs/features.json` written; `.ghs/progress.md` annotated | Always available |
+| **Abort this feature, continue with others** | Leave `.ghs/features.json` for this feature at `status: "pending"`. Annotate `.ghs/progress.md`. Continue with other features in the batch | `.ghs/features.json` unchanged for this feature; `.ghs/progress.md` annotated | Always available (parallel mode only) |
+
+The AskUserQuestion prompt must show the parser's `status`, `strategy`, and `warnings` from the most recent attempt, list the four options, and include the path to the most recent `.raw.attempt<N>` file so the user can inspect the raw subagent output before deciding.
 
 ### State Update Phase
 

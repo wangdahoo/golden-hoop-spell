@@ -117,6 +117,44 @@ When the reviewer identifies Severe or Medium issues, you must:
 1. Explicitly address each issue in the revised plan
 2. Add a revision log at the top of the plan documenting what was changed in this round
 
+## Output Format Requirements
+
+The dispatcher extracts your plan by searching for the literal delimiters `<<<PLAN_START>>>` and `<<<PLAN_END>>>`. If you deviate from the delimiter protocol, the dispatcher must invoke a fallback parser, retry the design, or ask the user — wasting a round and slowing the planning loop. To keep the loop tight:
+
+1. Output the delimiters EXACTLY as written: `<<<PLAN_START>>>` on its own line, `<<<PLAN_END>>>` on its own line.
+2. Put ALL plan content between them.
+3. **Do NOT wrap the delimiters or the content in a code fence** (no ` ``` ` markers around them).
+4. **Do NOT translate, transliterate, or modify the delimiter strings** — no `《《PLAN_START》》`, no `<<PLAN_START>>`, no `<<< PLAN_START >>>`.
+5. Use the literal ASCII characters `<`, `>`, `_`.
+
+### Correct example
+
+~~~
+<<<PLAN_START>>>
+# My Plan
+... content ...
+<<<PLAN_END>>>
+PLAN DESIGN COMPLETE
+~~~
+
+### Incorrect examples (DO NOT DO THESE)
+
+- Wrapping in a code fence:
+
+  ~~~
+  ```
+  <<<PLAN_START>>>
+  ... content ...
+  <<<PLAN_END>>>
+  ```
+  ~~~
+
+  The parser falls back to a less reliable strategy and may emit warnings.
+
+- Translated punctuation: `《《PLAN_START》》...《《PLAN_END》》` — the parser may fall back or fail entirely.
+
+- Missing or extra brackets: `<<PLAN_START>>` / `<<<<PLAN_START>>>>` — same problem.
+
 ## Completion Signal
 
 - Design complete: `PLAN DESIGN COMPLETE`
