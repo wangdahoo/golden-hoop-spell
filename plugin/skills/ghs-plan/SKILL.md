@@ -561,7 +561,11 @@ After the plan passes review, use AskUserQuestion to request user confirmation:
 
 1. **One question at a time**: When using AskUserQuestion to follow up with the user, ask exactly one question. Do not move to the next question until the current one is answered.
 
-2. **Maximum review-revise rounds**: The default limit is 5 rounds. For straightforward requirements (e.g., adding a single feature, small refactor, < 200 word description with no architectural changes), set `max_rounds` to 2 in the status file to save time. Once the limit is reached, the user must decide.
+2. **Maximum review-revise rounds (soft + hard cap)**: The default soft limit is 5 rounds (`max_rounds`). For straightforward requirements (e.g., adding a single feature, small refactor, < 200 word description with no architectural changes), set `max_rounds` to 2 in the status file to save time.
+
+   Once `round >= max_rounds` is reached (either via Phase 2 FAIL or Phase 3 reject), the dispatcher MUST NOT silently start a new round. The user must explicitly choose one of three options: continue (breach), accept, or abort.
+
+   **Hard cap on breaches**: The number of "Continue revising anyway" breaches is bounded by `MAX_BREACHES` (default `2`, defined in [## Format Recovery](#format-recovery) → **Constants**). When `max_rounds_breaches >= MAX_BREACHES`, the continue option is removed from the menu — the user can only accept or abort. This guarantees the dispatcher will terminate in at most `max_rounds + MAX_BREACHES` rounds regardless of user choices.
 
 3. **Role isolation**:
    - The plan designer cannot communicate directly with the user; all questions are relayed through the dispatcher
