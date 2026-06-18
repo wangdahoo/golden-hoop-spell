@@ -97,9 +97,9 @@ Pass criteria: **zero severe or medium issues**. Only optimization items are acc
 
 2. **Confirm requirement**: If the user has not provided a requirement description, use AskUserQuestion to ask: "Please describe the requirement you need a technical plan for." Ask only one question at a time.
 
-3. **Create working directory**:
+3. **Create working directory** (creates both the main directory and the `.tmp/` scratch subdirectory in one shot, so Handling step 2's Write to `.tmp/<x>.raw` never hits "No such file or directory"):
    ```bash
-   mkdir -p ${PROJECT_DIR}/.ghs/plans
+   mkdir -p ${PROJECT_DIR}/.ghs/plans ${PROJECT_DIR}/.ghs/plans/.tmp
    ```
 
 4. **Generate file identifier**: Create `{date}-{slug}` based on current date and the requirement topic.
@@ -579,6 +579,7 @@ When a subagent returns output the parser cannot extract (`status` `empty` / `ma
 
 **Constants**:
 - `MAX_RETRY = 1` — each subagent call may be re-dispatched at most once. This counter is independent from the review-revise `max_rounds` counter.
+- `MAX_BREACHES = 2` — the maximum number of "Continue revising anyway" breaches the user can opt into after `round >= max_rounds` is reached. Once `max_rounds_breaches >= MAX_BREACHES`, the "Continue revising anyway" option is removed from both Phase 2 FAIL @ max_rounds and Phase 3 reject @ max_rounds menus; the user can only accept or abort. This guarantees the dispatcher terminates in at most `max_rounds + MAX_BREACHES` rounds regardless of user choices. This constant is the **single source of truth** for the hard cap; Phase 2 / Phase 3 / Key Constraints all reference it by name.
 
 **Raw file naming** (preserves every attempt for post-mortem debugging):
 - Phase 0.5 (context snapshot): `<context_file>.raw`, then `<context_file>.raw_retry1`, `<context_file>.raw_retry2`, ...
