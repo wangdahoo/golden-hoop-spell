@@ -640,7 +640,7 @@ After the plan passes review, use AskUserQuestion to request user confirmation:
 ## Error Handling
 
 - **Subagent failure**: Log the error, notify the user, ask whether to retry
-- **Subagent output format deviation**: If the subagent returns successfully but the output cannot be parsed via the delimiter protocol (detected via `parse_delimited_output.py` returning `status` "empty" or "malformed", or `verdict == null` for review), retry once with the [Format Recovery](#format-recovery) appendix appended to the prompt. If retry still fails, the raw output is already saved at `<file>.raw.round<R>[_retry<T>]`; use AskUserQuestion to let the user decide (retry / accept fallback / abort — see [## User Decision Handling](#user-decision-handling)). **Never silently hang on unparseable output.**
+- **Subagent output format deviation**: Detected via `parse_delimited_output.py` returning `status` "empty" or "malformed", or `verdict == null` for review. On detection, the response is persisted to a post-mortem raw at `<file>.raw` (first attempt) or `<file>.raw.retry<T>` (retry) in the main `.ghs/plans/` directory — see Phase 0.5 / Phase 1 / Phase 2 Handling step 4. Retry once with the [Format Recovery](#format-recovery) appendix. If retry still fails, use AskUserQuestion to let the user decide (retry / accept fallback / abort — see [## User Decision Handling](#user-decision-handling)). **Never silently hang on unparseable output.**
 - **File read/write failure**: Check paths and permissions, notify the user
 - **User not responding**: Wait, do not proceed automatically
 
@@ -652,9 +652,14 @@ When a subagent returns output the parser cannot extract (`status` `empty` / `ma
 - `MAX_RETRY = 1` — each subagent call may be re-dispatched at most once. This counter is independent from the review-revise `max_rounds` counter.
 - `MAX_BREACHES = 2` — the maximum number of "Continue revising anyway" breaches the user can opt into after `round >= max_rounds` is reached. Once `max_rounds_breaches >= MAX_BREACHES`, the "Continue revising anyway" option is removed from both Phase 2 FAIL @ max_rounds and Phase 3 reject @ max_rounds menus; the user can only accept or abort. This guarantees the dispatcher terminates in at most `max_rounds + MAX_BREACHES` rounds regardless of user choices. This constant is the **single source of truth** for the hard cap; Phase 2 / Phase 3 / Key Constraints all reference it by name.
 
-**Raw file naming** (preserves every attempt for post-mortem debugging):
-- Phase 0.5 (context snapshot): `<context_file>.raw`, then `<context_file>.raw_retry1`, `<context_file>.raw_retry2`, ...
-- Phase 1 (plan designer) and Phase 2 (reviewer): `<file>.raw.round<R>` for the first attempt in round R, then `<file>.raw.round<R>_retry1`, `<file>.raw.round<R>_retry2`, ...
+**Raw file naming** — post-mortem raw files ONLY exist on the error path (parse failure) or when `keep_raw_on_success: true` is set in status.json. They are NOT written on the happy path by default. Scratch files used for parser input live in `.ghs/plans/.tmp/` and are cleaned up immediately after parse (see Phase 0.5 / Phase 1 / Phase 2 Handling step 4).
+- First-attempt failure: `<file>.raw` (i.e. `<plan_file>.raw`, `<review_file>.raw`, `<context_file>.raw`)
+- Retry-T failure: `<file>.raw.retry<T>` (e.g. `<plan_file>.raw.retry1`)
+- Note: Round number is NO LONGER in the filename. Since happy path produces no post-mortem raw, and the normal error path is bounded by `MAX_RETRY=1`, there are at most 2 post-mortem raw files per subagent kind under normal retry (`.raw` + `.raw.retry1`).
+
+  **User-opted retry exception**: If the user picks "Retry once more" in [## User Decision Handling](#user-decision-handling) after `MAX_RETRY` is exhausted, an additional `<file>.raw.retry<T+1>` is written. This path is NOT bounded by `MAX_RETRY` — but it IS bounded by the dispatcher's overall termination guarantee: the user can only retry-format as many times as they keep picking "Retry once more", and the session's max-rounds + breach hard cap (see Key Constraints #2) still bounds total subagent spawns. In practice, post-mortem raw count stays small.
+
+  **`keep_raw_on_success: true` exception**: When this flag is set in status.json, every successful parse ALSO writes a post-mortem raw at `<file>.raw` (overwriting any prior). Use this only for hard-to-debug sessions.
 
 **Retry appendix templates** (append verbatim to the original subagent prompt; pick the one matching the kind):
 
@@ -724,9 +729,9 @@ When retry is exhausted (`retry_count >= MAX_RETRY`) and the parser still cannot
 
 | Option | Dispatcher behavior | File side-effects | When available |
 |--------|---------------------|-------------------|----------------|
-| **Retry once more** | Increment `retry_count` (one-shot override past `MAX_RETRY`), re-dispatch the subagent with the [Format Recovery](#format-recovery) appendix | New `<file>.raw.round<R>_retry<T+1>` (or `<context_file>.raw_retry<T+1>` for Phase 0.5) | Always available |
+| **Retry once more** | Increment `retry_count` (one-shot override past `MAX_RETRY`), re-dispatch the subagent with the [Format Recovery](#format-recovery) appendix | New `<file>.raw.retry<T+1>` (or `<context_file>.raw.retry<T+1>` for Phase 0.5) — round number no longer in filename | Always available |
 | **Accept the fallback-extracted content** | Take the most recent `fallback_used` content (or the current raw if the user has manually inspected and confirmed it is usable) and write it to the target file with a leading warning comment: `<!-- WARNING: manually accepted after format deviation retry; strategy=<strategy>; warnings=<warnings joined by "; "> -->` | `<file>` written; status advances to the next phase | Only available if at least one prior parse produced `fallback_used`, OR the user explicitly confirms the current raw is acceptable |
-| **Abort this planning session** | Set status to `aborted`, stop all subsequent actions | All `.raw*` files preserved for post-mortem | Always available |
+| **Abort this planning session** | Set status to `aborted`, stop all subsequent actions | Any `.raw*` files written so far (post-mortem raw from error path, if any retry happened) are preserved in the main `.ghs/plans/` directory; `.tmp/` scratch is cleaned up by step 4 of the Handling flow (which deletes temp files even on the parse-success path) | Always available |
 
 The AskUserQuestion prompt must:
 1. Show the parser's `status`, `strategy`, and `warnings` from the most recent attempt.
