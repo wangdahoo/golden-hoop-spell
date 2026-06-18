@@ -562,14 +562,20 @@ After the plan passes review, use AskUserQuestion to request user confirmation:
    cp ${PROJECT_DIR}/.ghs/plans/${plan_file} ${PROJECT_DIR}/docs/ghs/plans/${plan_file}
    ```
 
-2. Commit the finalized plan document:
+2. **Check for accepted-with-fail marker**: Read the top of the plan file. If it contains a line matching `<!-- WARNING: accepted with unfixed issues`, set `ACCEPTED_WITH_FAIL = true` and extract the `<R>`, `<B>`, `<X>`, `<Y>` values from the marker. Otherwise set `ACCEPTED_WITH_FAIL = false`.
+
+3. Commit the finalized plan document. If `ACCEPTED_WITH_FAIL == true`, append the suffix `[accepted-with-fail; S=<X> M=<Y>]` to the commit message so that future `git log` readers can identify plans that passed with unfixed Severe/Medium issues:
+   ```bash
+   cd ${PROJECT_DIR} && git add docs/ghs/plans/${plan_file} && git commit -m "docs(plan): add technical plan - ${plan_file}[accepted-with-fail; S=<X> M=<Y>]"
+   ```
+   If `ACCEPTED_WITH_FAIL == false`, use the original commit message:
    ```bash
    cd ${PROJECT_DIR} && git add docs/ghs/plans/${plan_file} && git commit -m "docs(plan): add technical plan - ${plan_file}"
    ```
 
-3. Update status to `approved`.
+4. Update status to `approved`. If `ACCEPTED_WITH_FAIL == true`, also write `"accepted_with_fail": true` to the status file (so `status.json` can be grepped after-the-fact for "带病通过" plans). The `status` field itself stays `"approved"` (this avoids a new state-machine value); `accepted_with_fail` is a separate boolean flag.
 
-4. Report the final plan location and a summary of review rounds to the user. Suggest the next step: use `/ghs:sprint` to break the plan into features for implementation.
+5. Report the final plan location and a summary of review rounds to the user. If `ACCEPTED_WITH_FAIL == true`, explicitly warn the user: "This plan was accepted with unfixed issues (Severe=<X>, Medium=<Y>). These issues are listed in the review report and must be tracked separately." Suggest the next step: use `/ghs:sprint` to break the plan into features for implementation.
 
 ---
 
