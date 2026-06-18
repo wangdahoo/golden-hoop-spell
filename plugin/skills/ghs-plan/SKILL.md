@@ -536,7 +536,17 @@ After the plan passes review, use AskUserQuestion to request user confirmation:
 > The plan has completed N rounds of review with no severe or medium issues remaining. Do you approve this plan?
 
 - **User approves** -> Proceed to Phase 4
-- **User rejects** -> Ask for specific revision requests, update status to `revising`, go back to Phase 1 with the user's feedback attached to the revision instructions
+- **User rejects**:
+  - If `round < max_rounds`: Ask for specific revision requests, update status to `revising`, increment `round`, go back to Phase 1.
+  - If `round >= max_rounds` AND `max_rounds_breaches < MAX_BREACHES` (default `MAX_BREACHES = 2`, defined in [## Format Recovery](#format-recovery) → `**Constants**`): Max round limit reached. Use AskUserQuestion to present three options, since continuing would exceed the configured max_rounds:
+    1. **Continue revising anyway** (one-shot breach): Increment `max_rounds_breaches`, ask for feedback, increment `round`, go to Phase 1. Notify the user this exceeds the original max_rounds budget and how many breaches remain.
+    2. **Accept the current plan**: Proceed to Phase 4 finalization with the current plan file.
+    3. **Abort**: Set status to `aborted`, stop.
+  - If `round >= max_rounds` AND `max_rounds_breaches >= MAX_BREACHES`: Hard cap reached. Use AskUserQuestion to present only two options (the "Continue revising anyway" breach option is NO LONGER available):
+    1. **Accept the current plan**: Proceed to Phase 4 finalization.
+    2. **Abort**: Set status to `aborted`, stop.
+
+  > The reject path does NOT silently continue past max_rounds. Each extra round requires explicit user opt-in, AND the total number of breaches is capped at `MAX_BREACHES` (defined in [## Format Recovery](#format-recovery) → `**Constants**`). Once the cap is reached, the dispatcher can no longer spawn a new round — the user must accept or abort. This closes BOTH the "silent continue" gap AND the "user keeps picking continue forever" gap (the latter being the actual root cause of the Round 5 runaway in the diagnostic session).
 
 ### Phase 4: Finalization
 
