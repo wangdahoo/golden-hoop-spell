@@ -110,36 +110,150 @@ Pass criteria: **zero severe or medium issues**. Only optimization items are acc
 
 Extract a condensed context snapshot of the project. This snapshot is shared by all subsequent subagents (designer and reviewer) across all rounds, eliminating redundant codebase exploration.
 
-**Detection**: Check if codegraph is available for the target project:
-1. Check if `${PROJECT_DIR}/.codegraph/` directory exists
-2. If yes, try calling `codegraph_status(projectPath="<PROJECT_DIR>")` to confirm the index is usable
-3. If both checks pass → use Path A; otherwise → use Path B
+**Core principle**: The dispatcher NEVER calls `codegraph_files` or `codegraph_explore` directly in the main conversation — raw codegraph results are large and pollute the dispatcher's context permanently. All codegraph calls happen inside a Context Subagent whose context is discarded after it returns. The only codegraph call allowed in the main conversation is a single `codegraph_status` probe during Detection.
 
-#### Path A: Codegraph-accelerated (preferred when available)
+**Detection** (dispatcher, before spawning subagent):
+1. Check if `${PROJECT_DIR}/.codegraph/` directory exists.
+2. If yes, call `codegraph_status(projectPath="<PROJECT_DIR>")` ONCE to confirm the index is usable. This is the only codegraph call allowed in the main conversation (~1KB result).
+3. Record `CODEGRAPH_AVAILABLE = <true | false>` and pass it into the Context Subagent prompt.
 
-The dispatcher calls codegraph tools directly — no subagent needed:
+**Spawn a Context Subagent to extract the snapshot** — both the `subagent_type` AND the prompt template depend on `CODEGRAPH_AVAILABLE`:
 
-1. `codegraph_files(maxDepth=3, projectPath="<PROJECT_DIR>")` — get project structure
-2. `codegraph_explore(query="<requirement-related keywords> architecture", projectPath="<PROJECT_DIR>")` — get relevant code context
-3. Condense the output into the context snapshot format defined in `${CLAUDE_PLUGIN_ROOT}/shared/references/context-snapshot-guide.md`
-4. Write to `<PROJECT_DIR>/.ghs/plans/<context_file>`
-
-#### Path B: Explore subagent (fallback)
-
-Spawn an Explore subagent (with haiku model) to scan the project and create a condensed context snapshot.
-
-> **Note**: Explore subagents do not have file write permissions. The subagent outputs the snapshot content in its response; the dispatcher writes it to disk.
+- If `CODEGRAPH_AVAILABLE = true`: spawn `general-purpose` (model `haiku`) with `PROMPT_TEMPLATE_CODEGRAPH`. Verified to inherit project-scoped codegraph MCP.
+- If `CODEGRAPH_AVAILABLE = false`: spawn `Explore` (model `haiku`) with `PROMPT_TEMPLATE_GREP`. read-only search agent — grep/glob/read fallback, no Write/Edit permission needed. The prompt explicitly forbids any `codegraph_*` call.
 
 ```json
 {
-  "subagent_type": "Explore",
+  "subagent_type": "<general-purpose | Explore>",
   "model": "haiku",
   "description": "Extract project context snapshot",
-  "prompt": "Extract a project context snapshot for the following requirement:\n\n## Requirement\n<user's requirement description>\n\n## Project Directory\n<PROJECT_DIR>\n\n## Task\nScan the project and produce a condensed context snapshot.\n\nFollow the format in ${CLAUDE_PLUGIN_ROOT}/shared/references/context-snapshot-guide.md:\n1. Read the dependency manifest (package.json, requirements.txt, Cargo.toml, etc.)\n2. Get the directory structure (exclude node_modules, .git, build dirs)\n3. Read the main entry point\n4. Read config files and database schemas\n5. Read files in directories related to the requirement topic\n6. Condense findings into the snapshot format\n\nTarget 50-70% compression vs raw source. Include function signatures, schemas, and routing — not full file contents.\n\n## Output Format\nOutput the FULL snapshot content in your response, delimited by:\n<<<CONTEXT_SNAPSHOT_START>>>\n...snapshot content here...\n<<<CONTEXT_SNAPSHOT_END>>>\n\nDo NOT attempt to write any files. Just output the content between the delimiters."
+  "prompt": "<dispatcher fills with the full text of PROMPT_TEMPLATE_CODEGRAPH or PROMPT_TEMPLATE_GREP from below>"
 }
 ```
 
-**Handling (Path B)**: First save the subagent's raw response to disk (file naming per [## Format Recovery](#format-recovery)): the first attempt goes to `<PROJECT_DIR>/.ghs/plans/<context_file>.raw`, retries go to `<context_file>.raw_retry<T>`. Then invoke the parser helper.
+Before spawning, the dispatcher replaces all `<PROJECT_DIR>` and `<requirement description>` placeholders. When replacing `<requirement description>`, strip any substring matching the snapshot delimiters (`<<<CONTEXT_SNAPSHOT_START>>>` / `<<<CONTEXT_SNAPSHOT_END>>>`) from the user input to prevent delimiter injection. A minimal-sed recipe the dispatcher can run verbatim:
+
+```bash
+SANITIZED_REQ=$(printf '%s' "$USER_REQ" \
+  | sed 's/<<<CONTEXT_SNAPSHOT_START>>>//g; s/<<<CONTEXT_SNAPSHOT_END>>>//g')
+```
+
+Then substitute `$SANITIZED_REQ` into the `<requirement description>` placeholder of the chosen prompt template.
+
+**PROMPT_TEMPLATE_CODEGRAPH** (used when `CODEGRAPH_AVAILABLE = true`, `subagent_type = general-purpose`):
+
+```
+You are extracting a condensed project context snapshot. Your output feeds
+downstream plan designers/reviewers — keep it tight.
+
+## Requirement
+<requirement description>
+
+## Project Directory
+<PROJECT_DIR>
+
+## Task
+codegraph MCP is available for this project. Use it as the primary exploration
+tool. Produce a context snapshot following the format in
+${CLAUDE_PLUGIN_ROOT}/shared/references/context-snapshot-guide.md.
+
+### Hard call budget (do NOT exceed):
+- At most ONE `codegraph_files(maxDepth=3, projectPath="<PROJECT_DIR>")` call.
+- At most ONE `codegraph_explore(query="...", projectPath="<PROJECT_DIR>")` call.
+  Combine ALL keyword facets from the requirement into a single query
+  (e.g. "<keyword1> <keyword2> <keyword3> architecture" — example is generic;
+  the actual query terms are derived from the requirement being planned).
+  Do NOT split into per-facet explore calls.
+- If the single explore result is insufficient for a specific detail, NOTE the
+  gap in the snapshot's "Known Gaps" section (see format below) — do NOT make
+  follow-up explore calls. The plan designer will fill gaps later.
+
+### Snapshot format
+Follow the four sections defined in context-snapshot-guide.md:
+1. Technology Stack
+2. Directory Structure
+3. Architecture Summary
+4. Relevant Code Excerpts
+
+You MAY append one optional section at the end if needed:
+
+## 5. Known Gaps (optional)
+List any specific details you could not fully capture within the call budget.
+One bullet per gap, each naming the file/symbol/area and what is missing.
+Example:
+- `src/auth/session.ts` — could not verify the session refresh token rotation
+  logic (omitted from the single explore query to stay within budget).
+
+Target 50-70% compression vs raw source. Include function signatures, schemas,
+routing — NOT full file contents.
+
+## Output Format
+Output the FULL snapshot content in your response, delimited by:
+<<<CONTEXT_SNAPSHOT_START>>>
+...snapshot content here...
+<<<CONTEXT_SNAPSHOT_END>>>
+
+Do NOT attempt to write any files. Just output the content between the delimiters.
+```
+
+**PROMPT_TEMPLATE_GREP** (used when `CODEGRAPH_AVAILABLE = false`, `subagent_type = Explore`):
+
+```
+You are extracting a condensed project context snapshot. Your output feeds
+downstream plan designers/reviewers — keep it tight.
+
+## Requirement
+<requirement description>
+
+## Project Directory
+<PROJECT_DIR>
+
+## Task
+**You MUST NOT call any `codegraph_*` tool in this run — codegraph is not
+available. Use grep/glob/read only.**
+
+Produce a context snapshot following the format in
+${CLAUDE_PLUGIN_ROOT}/shared/references/context-snapshot-guide.md.
+
+### Exploration steps:
+1. Read the dependency manifest (package.json / requirements.txt / Cargo.toml / ...)
+2. Get directory structure (exclude node_modules, .git, build dirs)
+3. Read main entry point
+4. Read config files and DB schemas
+5. Read files in directories related to the requirement topic
+6. Condense into snapshot format
+
+### Snapshot format
+Follow the four sections defined in context-snapshot-guide.md:
+1. Technology Stack
+2. Directory Structure
+3. Architecture Summary
+4. Relevant Code Excerpts
+
+You MAY append one optional section at the end if needed:
+
+## 5. Known Gaps (optional)
+List any specific details you could not fully capture within the call budget.
+One bullet per gap, each naming the file/symbol/area and what is missing.
+Example:
+- `src/auth/session.ts` — could not verify the session refresh token rotation
+  logic (omitted from the single explore query to stay within budget).
+
+Target 50-70% compression vs raw source. Include function signatures, schemas,
+routing — NOT full file contents.
+
+## Output Format
+Output the FULL snapshot content in your response, delimited by:
+<<<CONTEXT_SNAPSHOT_START>>>
+...snapshot content here...
+<<<CONTEXT_SNAPSHOT_END>>>
+
+Do NOT attempt to write any files. Just output the content between the delimiters.
+```
+
+> **Note**: Context Subagents **should not** write files — output the snapshot in your response and let the dispatcher write it. (general-purpose subagents have Write permission by default, but this flow requires text-only output; Explore subagents have no Write permission by design.)
+
+**Handling**: First save the subagent's raw response to disk (file naming per the Format Recovery section): the first attempt goes to `<PROJECT_DIR>/.ghs/plans/<context_file>.raw`, retries go to `<context_file>.raw_retry<T>`. Then invoke the parser helper.
 
 > **You MUST copy this command verbatim, only replacing the `<placeholders>`. Do NOT parse the subagent output yourself — the helper is the single source of truth for delimiter extraction.**
 
@@ -153,13 +267,17 @@ command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_delimited_output.py \
 Read the JSON object printed to stdout and branch on `status`:
 
 - **`ok`**: Write `content` to `<PROJECT_DIR>/.ghs/plans/<context_file>`. Add `context_file` to the status JSON. Proceed to Phase 1.
-- **`fallback_used`**: Write `content` to `<context_file>` with a leading warning comment:
-  ```
-  <!-- WARNING: extracted via fallback strategy: <strategy>; warnings: <warnings joined by "; "> -->
-  ```
-  Add `context_file` to the status JSON. Notify the user that fallback extraction was used, then proceed to Phase 1.
-- **`empty` or `malformed`** with `retry_count < MAX_RETRY (=1)`: Increment `retry_count`, re-dispatch the Explore subagent with the original prompt plus the [Format Recovery](#format-recovery) appendix for context_snapshot. Then return to the raw-save step (writing to `<context_file>.raw_retry<T>`).
-- **`empty` or `malformed`** with `retry_count >= MAX_RETRY`: Use AskUserQuestion per [## User Decision Handling](#user-decision-handling).
+- **`fallback_used`**: Write `content` to `<context_file>` with a leading warning comment (`<!-- WARNING: extracted via fallback strategy: <strategy>; warnings: <warnings joined by "; "> -->`). Add `context_file` to the status JSON. Notify the user (as plain text in your response — this is informational, not a decision point, so do NOT use AskUserQuestion) that fallback extraction was used. Proceed to Phase 1.
+- **`empty` or `malformed`** with `retry_count < MAX_RETRY (=1)`: Increment `retry_count`, re-dispatch the Context Subagent with the Format Recovery appendix appended.
+
+  Note: keep the SAME `subagent_type` and the SAME prompt template
+  (`PROMPT_TEMPLATE_CODEGRAPH` or `PROMPT_TEMPLATE_GREP`) as the first attempt —
+  do NOT switch the subagent type or prompt template during retry. Keep
+  `general-purpose`+`PROMPT_TEMPLATE_CODEGRAPH` or `Explore`+`PROMPT_TEMPLATE_GREP`
+  consistent with the first attempt.
+
+  Then return to the raw-save step (writing to `<context_file>.raw_retry<T>`).
+- **`empty` or `malformed`** with `retry_count >= MAX_RETRY`: Use AskUserQuestion per the User Decision Handling section.
 
 ### Phase 1: Plan Design (Round N)
 
@@ -509,7 +627,7 @@ Example (correct):
 REVIEW COMPLETE | Verdict: PASS | Severe: 0 Medium: 0 Optimization: 1
 ```
 
-For Explore subagent retries (`--kind context_snapshot`, Phase 0.5 Path B):
+For Context Subagent retries (`--kind context_snapshot`, Phase 0.5):
 ```
 ## IMPORTANT: Previous Output Format Issue
 Your previous response could not be parsed correctly. The delimiters
@@ -520,6 +638,12 @@ This time you MUST:
 2. Put ALL snapshot content between them.
 3. Do NOT wrap the delimiters in a code fence.
 4. Do NOT translate or modify the delimiter strings.
+
+Note: keep the SAME `subagent_type` and the SAME prompt template
+(`PROMPT_TEMPLATE_CODEGRAPH` or `PROMPT_TEMPLATE_GREP`) as the first attempt —
+do NOT switch the subagent type or prompt template during retry. Keep
+`general-purpose`+`PROMPT_TEMPLATE_CODEGRAPH` or `Explore`+`PROMPT_TEMPLATE_GREP`
+consistent with the first attempt.
 ```
 
 ## User Decision Handling
