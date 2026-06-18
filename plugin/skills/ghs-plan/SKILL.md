@@ -261,31 +261,45 @@ Do NOT attempt to write any files. Just output the content between the delimiter
 
 > **Note**: Context Subagents **should not** write files — output the snapshot in your response and let the dispatcher write it. (general-purpose subagents have Write permission by default, but this flow requires text-only output; Explore subagents have no Write permission by design.)
 
-**Handling**: First save the subagent's raw response to disk (file naming per the Format Recovery section): the first attempt goes to `<PROJECT_DIR>/.ghs/plans/<context_file>.raw`, retries go to `<context_file>.raw_retry<T>`. Then invoke the parser helper.
+**Handling**:
 
-> **You MUST copy this command verbatim, only replacing the `<placeholders>`. Do NOT parse the subagent output yourself — the helper is the single source of truth for delimiter extraction.**
+1. **Hold the subagent response in memory for the duration of parse.** Do NOT persist it to a post-mortem `.raw` file in the main `.ghs/plans/` directory on the happy path — only the `.tmp/` scratch file in step 2 exists transiently and is deleted in step 4. This is the key distinction from the old behavior: the main `.ghs/plans/` directory stays clean of raw files on success, but the response is briefly on disk under `.tmp/` for the duration of the parser call (which `--input-file` requires).
 
-```bash
-command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_delimited_output.py \
-  --kind context_snapshot \
-  --input-file <PROJECT_DIR>/.ghs/plans/<context_file>.raw[_retry<T>] \
-  --min-length 100
-```
+2. Write the response verbatim to a **temporary file** for parser input (this is a scratch file under `.tmp/`, not a post-mortem raw in the main directory):
 
-Read the JSON object printed to stdout and branch on `status`:
+   > **Copy this command verbatim, only replacing the `<placeholders>`.**
 
-- **`ok`**: Write `content` to `<PROJECT_DIR>/.ghs/plans/<context_file>`. Add `context_file` to the status JSON. Proceed to Phase 1.
-- **`fallback_used`**: Write `content` to `<context_file>` with a leading warning comment (`<!-- WARNING: extracted via fallback strategy: <strategy>; warnings: <warnings joined by "; "> -->`). Add `context_file` to the status JSON. Notify the user (as plain text in your response — this is informational, not a decision point, so do NOT use AskUserQuestion) that fallback extraction was used. Proceed to Phase 1.
-- **`empty` or `malformed`** with `retry_count < MAX_RETRY (=1)`: Increment `retry_count`, re-dispatch the Context Subagent with the Format Recovery appendix appended.
+   Path: `<PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.context.raw` (the `.tmp/` subdirectory is created once in Phase 0 init step 3).
 
-  Note: keep the SAME `subagent_type` and the SAME prompt template
-  (`PROMPT_TEMPLATE_CODEGRAPH` or `PROMPT_TEMPLATE_GREP`) as the first attempt —
-  do NOT switch the subagent type or prompt template during retry. Keep
-  `general-purpose`+`PROMPT_TEMPLATE_CODEGRAPH` or `Explore`+`PROMPT_TEMPLATE_GREP`
-  consistent with the first attempt.
+3. Invoke the parser helper via `--input-file` (shell never sees the response content — zero injection surface):
 
-  Then return to the raw-save step (writing to `<context_file>.raw_retry<T>`).
-- **`empty` or `malformed`** with `retry_count >= MAX_RETRY`: Use AskUserQuestion per the User Decision Handling section.
+   > **You MUST copy this command verbatim, only replacing the `<placeholders>`. Do NOT parse the subagent output yourself — the helper is the single source of truth for delimiter extraction.**
+
+   ```bash
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_delimited_output.py \
+     --kind context_snapshot \
+     --input-file <PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.context.raw \
+     --min-length 100
+   ```
+   Note: for context_snapshot, **do NOT pass `--completion-signal`** — there is no signal line for context snapshots, so the flag is omitted entirely (parser uses `default=None`).
+
+4. Read the JSON object from stdout. **Delete the temporary file from step 2** (whether parse succeeded or failed — the temp file's job is done; persistence decisions are separate). Then branch on `status`:
+
+   - **`ok`** or **`fallback_used`**:
+     - Write `content` to the target file (`<context_file>`). For `fallback_used`, prepend the warning comment `<!-- WARNING: extracted via fallback strategy: <strategy>; warnings: <warnings joined by "; "> -->`.
+     - **No post-mortem raw file is created on the happy path** (unless `keep_raw_on_success: true` in status.json — see [## State Tracking](#state-tracking)). Add `context_file` to the status JSON. Notify the user (as plain text in your response — this is informational, not a decision point, so do NOT use AskUserQuestion) if fallback was used. Proceed to Phase 1.
+   - **`empty`** / **`malformed`** with `retry_count < MAX_RETRY (=1)`:
+     1. **Now persist the response to a post-mortem raw file in the main directory** — this is the only time a `.raw` file lands in the main `.ghs/plans/` directory:
+        - Path: `<PROJECT_DIR>/.ghs/plans/<context_file>.raw` for the first attempt, `<PROJECT_DIR>/.ghs/plans/<context_file>.raw.retry<T>` for retry T.
+     2. Increment `retry_count`, re-dispatch the Context Subagent with the original prompt plus the [Format Recovery](#format-recovery) appendix.
+
+       Note: keep the SAME `subagent_type` and the SAME prompt template
+       (`PROMPT_TEMPLATE_CODEGRAPH` or `PROMPT_TEMPLATE_GREP`) as the first attempt —
+       do NOT switch the subagent type or prompt template during retry. Keep
+       `general-purpose`+`PROMPT_TEMPLATE_CODEGRAPH` or `Explore`+`PROMPT_TEMPLATE_GREP`
+       consistent with the first attempt.
+     3. Return to step 1 with the new response (use `<context_file>.raw.retry<T>` if it fails again).
+   - **`empty`** / **`malformed`** with `retry_count >= MAX_RETRY`: Post-mortem raw is already saved at `<context_file>.raw[.retry<T>]`. Use AskUserQuestion per [## User Decision Handling](#user-decision-handling).
 
 ### Phase 1: Plan Design (Round N)
 
@@ -380,30 +394,39 @@ If you read files beyond the context snapshot, list them as: "ADDITIONAL FILES R
 
 **Handling Designer Feedback**:
 
-1. Save the subagent's raw response to disk (file naming per [## Format Recovery](#format-recovery)): the first attempt in round R goes to `<PROJECT_DIR>/.ghs/plans/<plan_file>.raw.round<R>`, retries within round R go to `<plan_file>.raw.round<R>_retry<T>`.
-2. **Designer question pre-check**: If the raw response contains a line matching `^QUESTION:\s*(.+)$`, treat it as a designer question — use AskUserQuestion to relay the question to the user, then re-dispatch the Plan subagent with the original prompt plus the user's answer appended. Skip the remaining steps.
-3. Invoke the parser helper.
+1. **Hold the subagent response in memory for the duration of parse.** Do NOT persist it to a post-mortem `.raw` file in the main `.ghs/plans/` directory on the happy path — only the `.tmp/` scratch file in step 3 exists transiently and is deleted in step 5. This is the key distinction from the old behavior: the main `.ghs/plans/` directory stays clean of raw files on success, but the response is briefly on disk under `.tmp/` for the duration of the parser call (which `--input-file` requires).
+
+2. **Designer question pre-check**: If the response contains a line matching `^QUESTION:\s*(.+)$`, treat it as a designer question — use AskUserQuestion to relay the question to the user, then re-dispatch the Plan subagent with the original prompt plus the user's answer appended. **No temporary file written** (the question response is short and not persisted). Skip the remaining steps.
+
+3. Write the response verbatim to a **temporary file** for parser input (this is a scratch file under `.tmp/`, not a post-mortem raw in the main directory):
+
+   > **Copy this command verbatim, only replacing the `<placeholders>`.**
+
+   Path: `<PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.plan.raw` (the `.tmp/` subdirectory is created once in Phase 0 init step 3).
+
+4. Invoke the parser helper via `--input-file` (shell never sees the response content — zero injection surface):
 
    > **You MUST copy this command verbatim, only replacing the `<placeholders>`. Do NOT parse the subagent output yourself — the helper is the single source of truth for delimiter extraction.**
 
    ```bash
    command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_delimited_output.py \
      --kind plan \
-     --input-file <PROJECT_DIR>/.ghs/plans/<plan_file>.raw.round<R>[_retry<T>] \
+     --input-file <PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.plan.raw \
      --completion-signal "PLAN DESIGN COMPLETE" \
      --min-length 300
    ```
 
-4. Read the JSON object printed to stdout and branch on `status`:
+5. Read the JSON object from stdout. **Delete the temporary file from step 3** (whether parse succeeded or failed — the temp file's job is done; persistence decisions are separate). Then branch on `status`:
 
-   - **`ok`**: Write `content` to `<PROJECT_DIR>/.ghs/plans/<plan_file>`. Update status to `reviewing`. Proceed to Phase 2.
-   - **`fallback_used`**: Write `content` to `<plan_file>` with a leading warning comment:
-     ```
-     <!-- WARNING: extracted via fallback strategy: <strategy>; warnings: <warnings joined by "; "> -->
-     ```
-     Update status to `reviewing`. Notify the user that fallback extraction was used, then proceed to Phase 2.
-   - **`empty` or `malformed`** with `retry_count < MAX_RETRY (=1)`: Increment `retry_count`, re-dispatch the Plan subagent with the original prompt plus the [Format Recovery](#format-recovery) appendix for plan. Then return to step 1 (writing the next raw to `<plan_file>.raw.round<R>_retry<T>`).
-   - **`empty` or `malformed`** with `retry_count >= MAX_RETRY`: Use AskUserQuestion per [## User Decision Handling](#user-decision-handling).
+   - **`ok`** or **`fallback_used`**:
+     - Write `content` to the target file (`<plan_file>`). For `fallback_used`, prepend the warning comment `<!-- WARNING: extracted via fallback strategy: <strategy>; warnings: <warnings joined by "; "> -->`.
+     - **No post-mortem raw file is created on the happy path** (unless `keep_raw_on_success: true` in status.json — see [## State Tracking](#state-tracking)). Update status to `reviewing`. Notify the user (as plain text in your response — this is informational, not a decision point, so do NOT use AskUserQuestion) if fallback was used. Proceed to Phase 2.
+   - **`empty`** / **`malformed`** with `retry_count < MAX_RETRY (=1)`:
+     1. **Now persist the response to a post-mortem raw file in the main directory** — this is the only time a `.raw` file lands in the main `.ghs/plans/` directory:
+        - Path: `<PROJECT_DIR>/.ghs/plans/<plan_file>.raw` for the first attempt, `<PROJECT_DIR>/.ghs/plans/<plan_file>.raw.retry<T>` for retry T.
+     2. Increment `retry_count`, re-dispatch the Plan subagent with the original prompt plus the [Format Recovery](#format-recovery) appendix for plan.
+     3. Return to step 1 with the new response (use `<plan_file>.raw.retry<T>` if it fails again).
+   - **`empty`** / **`malformed`** with `retry_count >= MAX_RETRY`: Post-mortem raw is already saved at `<plan_file>.raw[.retry<T>]`. Use AskUserQuestion per [## User Decision Handling](#user-decision-handling).
 
 ### Phase 2: Plan Review
 
@@ -492,28 +515,38 @@ If you encounter a judgment you cannot resolve, output: "QUESTION: <specific que
 
 **Handling Reviewer Feedback**:
 
-1. Save the subagent's raw response to disk (file naming per [## Format Recovery](#format-recovery)): the first attempt in round R goes to `<PROJECT_DIR>/.ghs/plans/<review_file>.raw.round<R>`, retries within round R go to `<review_file>.raw.round<R>_retry<T>`.
-2. **Reviewer question pre-check**: If the raw response contains a line matching `^QUESTION:\s*(.+)$`, treat it as a reviewer question — use AskUserQuestion to relay the question to the user, then re-dispatch the reviewer with the original prompt plus the user's answer appended. Skip the remaining steps.
-3. Invoke the parser helper.
+1. **Hold the subagent response in memory for the duration of parse.** Do NOT persist it to a post-mortem `.raw` file in the main `.ghs/plans/` directory on the happy path — only the `.tmp/` scratch file in step 3 exists transiently and is deleted in step 5. This is the key distinction from the old behavior: the main `.ghs/plans/` directory stays clean of raw files on success, but the response is briefly on disk under `.tmp/` for the duration of the parser call (which `--input-file` requires).
+
+2. **Reviewer question pre-check**: If the response contains a line matching `^QUESTION:\s*(.+)$`, treat it as a reviewer question — use AskUserQuestion to relay the question to the user, then re-dispatch the reviewer with the original prompt plus the user's answer appended. **No temporary file written** (the question response is short and not persisted). Skip the remaining steps.
+
+3. Write the response verbatim to a **temporary file** for parser input (this is a scratch file under `.tmp/`, not a post-mortem raw in the main directory):
+
+   > **Copy this command verbatim, only replacing the `<placeholders>`.**
+
+   Path: `<PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.review.raw` (the `.tmp/` subdirectory is created once in Phase 0 init step 3).
+
+4. Invoke the parser helper via `--input-file` (shell never sees the response content — zero injection surface):
 
    > **You MUST copy this command verbatim, only replacing the `<placeholders>`. Do NOT parse the subagent output yourself — the helper is the single source of truth for delimiter extraction AND for the verdict.**
 
    ```bash
    command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_delimited_output.py \
      --kind review \
-     --input-file <PROJECT_DIR>/.ghs/plans/<review_file>.raw.round<R>[_retry<T>] \
+     --input-file <PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.review.raw \
      --completion-signal "REVIEW COMPLETE" \
      --min-length 150
    ```
 
-4. Read the JSON object printed to stdout. **The verdict comes from the JSON `verdict` field — do NOT re-parse the completion signal text yourself.** Branch on `status` and `verdict`:
+5. Read the JSON object from stdout. **The verdict comes from the JSON `verdict` field — do NOT re-parse the completion signal text yourself.** **Delete the temporary file from step 3** (whether parse succeeded or failed — the temp file's job is done; persistence decisions are separate). Then branch on `status` AND `verdict`:
 
    - **`ok` or `fallback_used`** with `verdict == "PASS"`:
      - If `status == "fallback_used"`, write `content` to `<review_file>` with a leading warning comment: `<!-- WARNING: extracted via fallback strategy: <strategy>; warnings: <warnings joined by "; "> -->`. Otherwise write `content` directly.
+     - **No post-mortem raw file is created on the happy path** (unless `keep_raw_on_success: true` in status.json — see [## State Tracking](#state-tracking)).
      - **Early stop**: If `round == 1`, proceed directly to Phase 3 — no need for additional rounds.
      - Update status to `pending_approval`. Proceed to Phase 3.
    - **`ok` or `fallback_used`** with `verdict == "FAIL"`:
      - Write `content` to `<review_file>` (with the warning comment if `fallback_used`).
+     - **No post-mortem raw file is created on the happy path** (unless `keep_raw_on_success: true` in status.json — see [## State Tracking](#state-tracking)).
      - Check round count:
        - `round < max_rounds` -> Update status to `revising`, increment round, go back to Phase 1.
        - `round >= max_rounds` AND `max_rounds_breaches < MAX_BREACHES` -> Max round limit reached. Use AskUserQuestion to present three options (symmetric with Phase 3 reject @ max_rounds):
@@ -524,8 +557,12 @@ If you encounter a judgment you cannot resolve, output: "QUESTION: <specific que
          1. **Accept the current plan despite the FAIL**: Same marker as above (see Phase 4 Finalization).
          2. **Abort**.
    - **`ok` or `fallback_used`** with `verdict == null`: Treat as format deviation — the reviewer's signal line did not contain `Verdict: PASS|FAIL`. Fall through to the retry path below.
-   - **`empty` or `malformed`** (or `verdict == null`) with `retry_count < MAX_RETRY (=1)`: Increment `retry_count`, re-dispatch the reviewer with the original prompt plus the [Format Recovery](#format-recovery) appendix for review. Then return to step 1 (writing the next raw to `<review_file>.raw.round<R>_retry<T>`).
-   - **`empty` or `malformed`** (or `verdict == null`) with `retry_count >= MAX_RETRY`: Use AskUserQuestion per [## User Decision Handling](#user-decision-handling).
+   - **`empty` or `malformed`** (or `verdict == null`) with `retry_count < MAX_RETRY (=1)`:
+     1. **Now persist the response to a post-mortem raw file in the main directory** — this is the only time a `.raw` file lands in the main `.ghs/plans/` directory:
+        - Path: `<PROJECT_DIR>/.ghs/plans/<review_file>.raw` for the first attempt, `<PROJECT_DIR>/.ghs/plans/<review_file>.raw.retry<T>` for retry T.
+     2. Increment `retry_count`, re-dispatch the reviewer with the original prompt plus the [Format Recovery](#format-recovery) appendix for review.
+     3. Return to step 1 with the new response (use `<review_file>.raw.retry<T>` if it fails again).
+   - **`empty` or `malformed`** (or `verdict == null`) with `retry_count >= MAX_RETRY`: Post-mortem raw is already saved at `<review_file>.raw[.retry<T>]`. Use AskUserQuestion per [## User Decision Handling](#user-decision-handling).
 
 ### Phase 2.5: Context Snapshot Update (Optional)
 
