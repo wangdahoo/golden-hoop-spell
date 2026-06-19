@@ -250,7 +250,7 @@ Dispatcher **明确不做**的事：
 - **一次性派生**：Phase 0.5 派生一次，产物写入 `{slug}-context.md` 后即弃，dispatcher 主上下文从不接触 codegraph 原始输出。
 - **能力探测**：dispatcher 先用最小开销的 status 调用确认 codegraph 是否可用（只返回文件数/节点数/边数，输出约 1KB），把可用性作为参数传入子代理 prompt。
 - **双模板派生**：可用时用 `general-purpose` + codegraph MCP；不可用时用 `Explore` + grep/glob/read。两个模板的输出协议完全一致（同样的分隔符、同样的字段结构），让下游 parser 无感知——下游永远不需要关心 codegraph 是否可用。
-- **预算约束**：模板内强制调用预算（如最多 1 次 `codegraph_files` + 1 次 `codegraph_explore`），避免子代理陷入无限探索。
+- **预算约束**：模板内强制调用预算（如最多 1 次 `codegraph_files` + 1 次 `codegraph_explore`），避免子代理陷入无限探索。预算不够覆盖某个细节时，子代理不允许 follow-up 查询，而是把缺口写入快照可选的第五段「Known Gaps」——明示 Designer 后续自行补。这是硬调用预算机制的出气口：用文档化缺口替代额外调用，把「是否再查」的决策权交给下游（详见 [§6.3](#63-硬调用预算阻止子代理无限探索)）。
 - **输出协议**：固定用 `<<<CONTEXT_SNAPSHOT_START>>>` / `<<<CONTEXT_SNAPSHOT_END>>>` 包围，内部按「技术栈 / 目录结构 / 架构摘要 / 相关代码节选」四段组织，目标 50-70% 压缩比——既保留必要细节，又控制下游读取成本。
 
 #### 注入防护
@@ -275,7 +275,7 @@ Designer 是负责产出方案正文的子代理。每一轮的设计阶段都�
 
 #### 方案结构
 
-Designer 产出的方案包含五段：**背景与目标 / 现状分析 / 方案设计 / 实施步骤 / 风险与缓解**。这五段对应了「为什么要做 / 现状如何 / 怎么做 / 具体步骤 / 可能出什么问题」的完整推理链。任何一段缺失都会被 Reviewer 的 12 维 checklist 捕捉到。
+Designer 产出的方案包含六段：**背景与目标 / 现状分析 / 方案设计 / 实施步骤 / 风险与缓解 / 测试策略**。这六段对应了「为什么要做 / 现状如何 / 怎么做 / 具体步骤 / 可能出什么问题 / 怎么验证」的完整推理链。任何一段缺失都会被 Reviewer 的 12 维 checklist 捕捉到。
 
 ### 4.4 Plan Reviewer：方案的独立审查者
 
@@ -320,6 +320,21 @@ REVIEW COMPLETE | Verdict: PASS|FAIL | Severe: X Medium: Y Optimization: Z
 
 status.json 是流程状态的唯一快照。它的设计有一个核心原则：**审计维度与状态枚举分离**。
 
+#### 完整字段一览
+
+| 字段 | 类型 | 含义 |
+|------|------|------|
+| `plan_file` | string | 当前 plan 文件名（`{date}-{slug}.md`）|
+| `context_file` | string | 当前 context 文件名（`{date}-{slug}-context.md`）|
+| `round` | int | 当前轮次，从 1 开始 |
+| `status` | enum | 流程状态，见下文枚举 |
+| `max_rounds` | int | 软上限，默认 5 |
+| `max_rounds_breaches` | int | 硬继续计数器，默认 0，封顶 `MAX_BREACHES` |
+| `accepted_with_fail` | bool | Phase 4 是否带病通过 |
+| `keep_raw_on_success` | bool | 调试开关，强制 happy path 也写 raw |
+| `created_at` | ISO 8601 | 创建时间戳 |
+| `updated_at` | ISO 8601 | 最后更新时间戳 |
+
 #### 状态枚举（流程语义）
 
 `status` 字段只有流程语义，枚举为：
@@ -363,7 +378,8 @@ status.json 是流程状态的唯一快照。它的设计有一个核心原则�
 #### 关键设计
 
 - **输入方式**：支持 `--stdin` / `--input-file` / `--input-string` 三种互斥方式。生产中只用 `--input-file`，shell 永远看不到响应内容，注入面为零。
-- **多级 fallback 策略**：从最严格的「字面分隔符」到最宽松的「整个响应体」分级抽取。只有最严格的命中才返回 `ok`，其余返回 `fallback_used` 让 dispatcher 决定是否警告。这样既能在 LLM 输出规范时干净抽取，又能在输出走样时尽力挽救。
+- **多级 fallback 策略**：按优先级依次尝试四种抽取策略——`exact_delimiter`（字面分隔符）/ `normalized_delimiter`（容忍全角/半角标点变体）/ `code_fence`（最大围栏块）/ `whole_body`（剥离 thinking 和信号行后整体）。只有 `exact_delimiter` 命中才返回 `ok`，其余返回 `fallback_used` 让 dispatcher 决定是否警告。命中的策略名直接回显在 JSON 的 `strategy` 字段，事后 grep 调试可见。
+- **thinking 兼容层**：所有策略之前先用 `_strip_thinking` 剥离 `<thinking>...</thinking>` 和 `<antml:thinking>...</antml:thinking>` 块——前者是现代 extended-thinking API 的产物，后者是 legacy/第三方网关的兼容。无论 LLM 走哪条 thinking 路径，parser 都看到干净的响应正文。
 - **kind 区分**：不同产物（context / plan / review）有不同的最小长度阈值和分隔符 token 名，避免互相污染。
 - **verdict 提取**：对 review 类型，从信号行提取 `Verdict: PASS|FAIL`。这是 dispatcher 决策的唯一依据。
 - **状态码分类**：返回 `ok` / `fallback_used` / `empty` / `malformed`，让 dispatcher 按不同失败模式走不同恢复路径——`empty` 是找到过短内容（可能是分隔符写对但内容缺失），`malformed` 是完全找不到分隔符（可能是格式彻底走样），两者的恢复策略不同。
@@ -375,7 +391,7 @@ dispatcher 接到子代理响应后，走一套统一的 Handling 流程（Phase
 #### Happy path（解析成功）
 
 1. **响应暂存内存**：不在主目录落盘，保持目录整洁。
-2. **写临时文件**：到 `.ghs/plans/.tmp/`（parser 的输入介质，只在 parser 运行期间存在）。
+2. **写临时文件**：到 `.ghs/plans/.tmp/<session_id>.<kind>.raw`（parser 的输入介质，只在 parser 运行期间存在）。`<session_id>` 维度让多个 ghs:plan 会话可以并行运行而不互相覆盖临时文件——这是并发安全的关键。
 3. **parser 读取临时文件**：dispatcher 拿到结构化 JSON。
 4. **按 JSON 字段推进**：status 置为下一阶段，把产物内容写入正式文件。
 5. **删除临时文件**：任务完成，清理痕迹。
@@ -412,7 +428,8 @@ Phase 0.5  上下文快照抽取:派 Context Subagent,写 context 文件
 │     ▼                                                   │
 │  Phase 2  Plan Review:派 Reviewer → 评审                │
 │     │                                                   │
-│     ├─ PASS → Phase 2.5(可选,补快照)→ Phase 3        │
+│     ├─ PASS @ round 1 → Phase 3 (early stop)            │
+│     ├─ PASS @ round 2+ → Phase 2.5(可选,补快照)→ Phase 3 │
 │     ├─ FAIL 且 round < max_rounds  → Round N+1          │
 │     └─ FAIL 且 round ≥ max_rounds  → 用户决策           │
 └─────────────────────────────────────────────────────────┘
