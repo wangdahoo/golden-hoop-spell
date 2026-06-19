@@ -6,40 +6,61 @@
 
 ## 目录
 
-- [1. 问题定义：LLM 用于技术方案生成的固有困境](#1-问题定义llm-用于技术方案生成的固有困境)
-  - [1.1 单次生成的质量不稳定](#11-单次生成的质量不稳定)
-  - [1.2 自我审查有同质化倾向](#12-自我审查有同质化倾向)
-  - [1.3 人工审查的有效性有限](#13-人工审查的有效性有限)
-  - [1.4 多智能体自由对话不可控](#14-多智能体自由对话不可控)
-  - [1.5 设计目标](#15-设计目标)
-- [2. 整体架构](#2-整体架构)
-  - [2.1 四个角色](#21-四个角色)
-  - [2.2 通信拓扑](#22-通信拓扑)
-  - [2.3 架构形塑的四个倒推](#23-架构形塑的四个倒推)
-- [3. 核心设计原则](#3-核心设计原则)
-  - [3.1 确定性优先于 LLM 自治](#31-确定性优先于-llm-自治)
-  - [3.2 隔离优先于共享上下文](#32-隔离优先于共享上下文)
-  - [3.3 文件优先于消息](#33-文件优先于消息)
-  - [3.4 错误显式优于静默挂起](#34-错误显式优于静默挂起)
-  - [3.5 软硬双上限保证终止](#35-软硬双上限保证终止)
-- [4. 各组件设计详解](#4-各组件设计详解)
-  - [4.1 Dispatcher：编排大脑](#41-dispatcher编排大脑)
-  - [4.2 Context Subagent：项目认知的抽取者](#42-context-subagent项目认知的抽取者)
-  - [4.3 Plan Designer：方案的生产者](#43-plan-designer方案的生产者)
-  - [4.4 Plan Reviewer：方案的独立审查者](#44-plan-reviewer方案的独立审查者)
-  - [4.5 状态机：status.json](#45-状态机statusjson)
-  - [4.6 Parser：确定性解析的边界](#46-parser确定性解析的边界)
-  - [4.7 Handling 流程：happy path 与 error path 的精确取舍](#47-handling-流程happy-path-与-error-path-的精确取舍)
-- [5. 流程编排与终止保证](#5-流程编排与终止保证)
-  - [5.1 完整流程](#51-完整流程)
-  - [5.2 两个独立的失败计数器](#52-两个独立的失败计数器)
-  - [5.3 终止论证](#53-终止论证)
-- [6. 上下文与 Token 经济](#6-上下文与-token-经济)
-  - [6.1 模型分层：任务派给能胜任的最便宜模型](#61-模型分层任务派给能胜任的最便宜模型)
-  - [6.2 内容传递：用文件路径替代内容嵌入](#62-内容传递用文件路径替代内容嵌入)
-  - [6.3 硬调用预算：阻止子代理无限探索](#63-硬调用预算阻止子代理无限探索)
-  - [6.4 终止保证即成本保证](#64-终止保证即成本保证)
-- [7. 参考实现文件清单](#7-参考实现文件清单)
+- [ghs:plan 技术原理](#ghsplan-技术原理)
+  - [目录](#目录)
+  - [1. 问题定义：LLM 用于技术方案生成的固有困境](#1-问题定义llm-用于技术方案生成的固有困境)
+    - [1.1 单次生成的质量不稳定](#11-单次生成的质量不稳定)
+    - [1.2 自我审查有同质化倾向](#12-自我审查有同质化倾向)
+    - [1.3 人工审查的有效性有限](#13-人工审查的有效性有限)
+    - [1.4 多智能体自由对话不可控](#14-多智能体自由对话不可控)
+    - [1.5 设计目标](#15-设计目标)
+  - [2. 整体架构](#2-整体架构)
+    - [2.1 四个角色](#21-四个角色)
+    - [2.2 通信拓扑](#22-通信拓扑)
+    - [2.3 架构形塑的四个倒推](#23-架构形塑的四个倒推)
+  - [3. 核心设计原则](#3-核心设计原则)
+    - [3.1 确定性优先于 LLM 自治](#31-确定性优先于-llm-自治)
+    - [3.2 隔离优先于共享上下文](#32-隔离优先于共享上下文)
+    - [3.3 文件优先于消息](#33-文件优先于消息)
+    - [3.4 错误显式优于静默挂起](#34-错误显式优于静默挂起)
+    - [3.5 软硬双上限保证终止](#35-软硬双上限保证终止)
+  - [4. 各组件设计详解](#4-各组件设计详解)
+    - [4.1 Dispatcher：编排大脑](#41-dispatcher编排大脑)
+    - [4.2 Context Subagent：项目认知的抽取者](#42-context-subagent项目认知的抽取者)
+      - [为什么需要独立抽取](#为什么需要独立抽取)
+      - [关键设计](#关键设计)
+      - [注入防护](#注入防护)
+    - [4.3 Plan Designer：方案的生产者](#43-plan-designer方案的生产者)
+      - [角色定位](#角色定位)
+      - [关键约束](#关键约束)
+      - [方案结构](#方案结构)
+    - [4.4 Plan Reviewer：方案的独立审查者](#44-plan-reviewer方案的独立审查者)
+      - [为什么需要独立 Reviewer](#为什么需要独立-reviewer)
+      - [评审维度](#评审维度)
+      - [严重度三级（核心机制）](#严重度三级核心机制)
+      - [输出协议](#输出协议)
+    - [4.5 状态机：status.json](#45-状态机statusjson)
+      - [完整字段一览](#完整字段一览)
+      - [状态枚举（流程语义）](#状态枚举流程语义)
+      - [审计维度（独立标记）](#审计维度独立标记)
+      - [可恢复性](#可恢复性)
+    - [4.6 Parser：确定性解析的边界](#46-parser确定性解析的边界)
+      - [为什么 dispatcher 不自己解析](#为什么-dispatcher-不自己解析)
+      - [关键设计](#关键设计-1)
+    - [4.7 Handling 流程：happy path 与 error path 的精确取舍](#47-handling-流程happy-path-与-error-path-的精确取舍)
+      - [Happy path（解析成功）](#happy-path解析成功)
+      - [Error path（解析失败）](#error-path解析失败)
+      - [为什么这样设计](#为什么这样设计)
+  - [5. 流程编排与终止保证](#5-流程编排与终止保证)
+    - [5.1 完整流程](#51-完整流程)
+    - [5.2 两个独立的失败计数器](#52-两个独立的失败计数器)
+    - [5.3 终止论证](#53-终止论证)
+  - [6. 上下文与 Token 经济](#6-上下文与-token-经济)
+    - [6.1 模型分层：任务派给能胜任的最便宜模型](#61-模型分层任务派给能胜任的最便宜模型)
+    - [6.2 内容传递：用文件路径替代内容嵌入](#62-内容传递用文件路径替代内容嵌入)
+    - [6.3 硬调用预算：阻止子代理无限探索](#63-硬调用预算阻止子代理无限探索)
+    - [6.4 终止保证即成本保证](#64-终止保证即成本保证)
+  - [7. 参考实现文件清单](#7-参考实现文件清单)
 
 ## 1. 问题定义：LLM 用于技术方案生成的固有困境
 
@@ -98,33 +119,22 @@ Dispatcher 是常驻的编排者；其余三者都是按需派生的子代理，
 
 ### 2.2 通信拓扑
 
-```
-                    ┌─────────────┐
-                    │   User      │
-                    └──────┬──────┘
-                           │ AskUserQuestion
-                           │ (唯一的用户交互通道)
-                    ┌──────▼──────┐
-                    │ Dispatcher  │
-                    └──┬───┬───┬──┘
-              派生/读取 │   │   │ 派生/读取
-              ┌────────┘   │   └────────┐
-              │            │            │
-        ┌─────▼────┐ ┌─────▼────┐ ┌─────▼────┐
-        │ Context  │ │ Designer │ │ Reviewer │
-        │ Subagent │ │          │ │          │
-        └─────┬────┘ └─────┬────┘ └─────┬────┘
-              │            │            │
-              │   写/读    │   写/读    │
-              ▼            ▼            ▼
-         ┌────────────────────────────────┐
-         │   .ghs/plans/  (共享文件系统)   │
-         │                                │
-         │   {slug}-context.md            │
-         │   {slug}.md  (plan)            │
-         │   {slug}-review.md             │
-         │   {slug}-status.json           │
-         └────────────────────────────────┘
+```mermaid
+flowchart TD
+    User[User]
+    Dispatcher
+    Context[Context Subagent]
+    Designer
+    Reviewer
+    FS[".ghs/plans/ 共享文件系统<br/><br/>{slug}-context.md<br/>{slug}.md (plan)<br/>{slug}-review.md<br/>{slug}-status.json"]
+
+    User <-->|AskUserQuestion<br/>唯一的用户交互通道| Dispatcher
+    Dispatcher <-.派生/读取.-> Context
+    Dispatcher <-.派生/读取.-> Designer
+    Dispatcher <-.派生/读取.-> Reviewer
+    Context -->|写/读| FS
+    Designer -->|写/读| FS
+    Reviewer -->|写/读| FS
 ```
 
 关键性质：
@@ -413,34 +423,36 @@ dispatcher 接到子代理响应后，走一套统一的 Handling 流程（Phase
 
 ### 5.1 完整流程
 
-```
-Phase 0    初始化:解析项目目录、确认需求、写初始 status
-   │
-   ▼
-Phase 0.5  上下文快照抽取:派 Context Subagent,写 context 文件
-   │
-   ▼
-┌─────────────────────────────────────────────────────────┐
-│  Round N 循环(1 ≤ N ≤ max_rounds + MAX_BREACHES)       │
-│                                                         │
-│  Phase 1  Plan Design:派 Designer → 写 plan 文件        │
-│     │                                                   │
-│     ▼                                                   │
-│  Phase 2  Plan Review:派 Reviewer → 评审                │
-│     │                                                   │
-│     ├─ PASS @ round 1 → Phase 3 (early stop)            │
-│     ├─ PASS @ round 2+ → Phase 2.5(可选,补快照)→ Phase 3 │
-│     ├─ FAIL 且 round < max_rounds  → Round N+1          │
-│     └─ FAIL 且 round ≥ max_rounds  → 用户决策           │
-└─────────────────────────────────────────────────────────┘
-   │
-   ▼
-Phase 3    User Approval:AskUserQuestion 请求用户确认
-   │       ├─ approve → Phase 4
-   │       └─ reject  → 回 Phase 1(同样受双上限约束)
-   │
-   ▼
-Phase 4    Finalization:复制到 docs/ghs/plans/、git commit、置 approved
+```mermaid
+flowchart TD
+    P0["Phase 0 初始化<br/>解析项目目录、确认需求、写初始 status"]
+    P05["Phase 0.5 上下文快照抽取<br/>派 Context Subagent，写 context 文件"]
+    P1["Phase 1 Plan Design<br/>派 Designer → 写 plan 文件"]
+    P2["Phase 2 Plan Review<br/>派 Reviewer → 评审"]
+    P25["Phase 2.5 (可选，补快照)"]
+    P3["Phase 3 User Approval<br/>AskUserQuestion 请求用户确认"]
+    P4["Phase 4 Finalization<br/>复制到 docs/ghs/plans/、git commit、置 approved"]
+
+    P0 --> P05
+    P05 --> P1
+
+    subgraph Round["Loop: 设计/修订 → 评审"]
+        P1 --> P2
+        P2 --> Verdict{"确认评审结果"}
+        Verdict -->|PASS| RoundCheck{"确认当前轮次"}
+        RoundCheck -->|第 1 轮| P3
+        RoundCheck -->|第 2 轮及以后| P25
+        P25 --> P3
+        Verdict -->|FAIL| MaxCheck{"是否 max_rounds 上限"}
+        MaxCheck -->|未达上限| P1
+        MaxCheck -->|已达上限| Decision["用户决策"]
+    end
+
+    Decision -->|接受当前方案| P3
+    Decision -->|终止| Abort([aborted])
+    P3 -->|approve| P4
+    P3 -->|reject 同样受双上限约束，最多追加 MAX_BREACHES 轮 | P1
+    P4 --> Approved([approved])
 ```
 
 每个 Phase 的产物和决策都已序列化在 status.json 或对应文件中，任何中断都能从文件状态精确恢复。
