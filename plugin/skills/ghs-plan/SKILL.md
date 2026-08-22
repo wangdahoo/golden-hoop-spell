@@ -620,12 +620,12 @@ Do you approve this plan?
 
 - **User approves** -> Proceed to Phase 4
 - **User rejects**:
-  - If `round < max_rounds`: Ask for specific revision requests, update status to `revising`, increment `round`, go back to Phase 1.
-  - If `round >= max_rounds` AND `max_rounds_breaches < MAX_BREACHES` (default `MAX_BREACHES = 2`, defined in [## Format Recovery](#format-recovery) → `**Constants**`): Max round limit reached. Use AskUserQuestion to present three options, since continuing would exceed the configured max_rounds:
-    1. **Continue revising anyway** (one-shot breach): Increment `max_rounds_breaches`, ask for feedback, increment `round`, go to Phase 1. Notify the user this exceeds the original max_rounds budget and how many breaches remain.
+  - If `round < max_rounds`: Ask for specific revision requests (no Approval Summary block needed — the user just reviewed it), update status to `revising`, increment `round`, go back to Phase 1.
+  - If `round >= max_rounds` AND `max_rounds_breaches < MAX_BREACHES` (default `MAX_BREACHES = 2`, defined in [## Format Recovery](#format-recovery) → `**Constants**`): Max round limit reached. Use AskUserQuestion to present three options, since continuing would exceed the configured max_rounds. Attach the Approval Summary block (per the Approval Summary Assembly section above) as the question body, and append this budget notice line after the Files section: `Continuing would exceed max_rounds budget; {MAX_BREACHES - max_rounds_breaches} breach(es) remaining`:
+    1. **Continue revising anyway** (one-shot breach): Increment `max_rounds_breaches`, ask for feedback (no Approval Summary block needed — the user just reviewed it), increment `round`, go to Phase 1.
     2. **Accept the current plan**: Proceed to Phase 4 finalization with the current plan file.
     3. **Abort**: Set status to `aborted`, stop.
-  - If `round >= max_rounds` AND `max_rounds_breaches >= MAX_BREACHES`: Hard cap reached. Use AskUserQuestion to present only two options (the "Continue revising anyway" breach option is NO LONGER available):
+  - If `round >= max_rounds` AND `max_rounds_breaches >= MAX_BREACHES`: Hard cap reached. Use AskUserQuestion to present only two options (the "Continue revising anyway" breach option is NO LONGER available). Attach the Approval Summary block (per the Approval Summary Assembly section above) as the question body, and append this budget notice line after the Files section instead: `Hard cap reached: no further revision rounds available`:
     1. **Accept the current plan**: Proceed to Phase 4 finalization.
     2. **Abort**: Set status to `aborted`, stop.
 
