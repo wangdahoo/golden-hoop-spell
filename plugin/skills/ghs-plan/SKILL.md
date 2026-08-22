@@ -549,11 +549,14 @@ If you encounter a judgment you cannot resolve, output: "QUESTION: <specific que
      - **No post-mortem raw file is created on the happy path** (unless `keep_raw_on_success: true` in status.json — see [## State Tracking](#state-tracking)).
      - Check round count:
        - `round < max_rounds` -> Update status to `revising`, increment round, go back to Phase 1.
-       - `round >= max_rounds` AND `max_rounds_breaches < MAX_BREACHES` -> Max round limit reached. Use AskUserQuestion to present three options (symmetric with Phase 3 reject @ max_rounds):
-         1. **Continue revising anyway** (one-shot breach): Increment `max_rounds_breaches`, increment `round`, go back to Phase 1. Show the user the review report so they understand what triggered the FAIL.
+       - `round >= max_rounds` AND `max_rounds_breaches < MAX_BREACHES` -> Max round limit reached. Use AskUserQuestion to present three options (symmetric with Phase 3 reject @ max_rounds), with the Approval Summary block as the question body. This is the FAIL scenario of the block defined in [Approval Summary Assembly](#approval-summary-assembly), with these deviations from the standard template:
+         - **Review Result section**: instead of the PASS stats line, show the FAIL stats line `Verdict: FAIL | Severe: {X} Medium: {Y}` followed by the titles of the Severe/Medium issues that triggered the FAIL, one per line, up to 6 titles; if there are more, truncate and append the line `... {N} more issue(s) — see Review file below`.
+         - **Files section**: unchanged — keep the Review file path so the user can dig into the full report.
+         - **Line budget**: the total block budget is relaxed to ≤ 40 lines for this scenario (instead of the standard 34), accommodating the issue-title lines.
+         1. **Continue revising anyway** (one-shot breach): Increment `max_rounds_breaches`, increment `round`, go back to Phase 1. Attach the Approval Summary block (per the deviations above) so the user understands what triggered the FAIL. (In other words: attach the Approval Summary block instead of dumping the full review report.)
          2. **Accept the current plan despite the FAIL**: Proceed to Phase 4 with the current plan file (the user takes responsibility for the unfixed issues). Add a marker line at the top of the plan file: `<!-- WARNING: accepted with unfixed issues (round <R>, breaches=<B>): Severe=<X> Medium=<Y> -->` (see Phase 4 Finalization for handling).
          3. **Abort**: Set status to `aborted`, stop.
-       - `round >= max_rounds` AND `max_rounds_breaches >= MAX_BREACHES` -> Hard cap reached. Use AskUserQuestion to present only two options (continue breach not available):
+       - `round >= max_rounds` AND `max_rounds_breaches >= MAX_BREACHES` -> Hard cap reached. Use AskUserQuestion to present only two options (continue breach not available), attaching the same FAIL-scenario Approval Summary block as above (FAIL stats + up to 6 issue titles, total ≤ 40 lines):
          1. **Accept the current plan despite the FAIL**: Same marker as above (see Phase 4 Finalization).
          2. **Abort**.
    - **`ok` or `fallback_used`** with `verdict == null`: Treat as format deviation — the reviewer's signal line did not contain `Verdict: PASS|FAIL`. Fall through to the retry path below.
