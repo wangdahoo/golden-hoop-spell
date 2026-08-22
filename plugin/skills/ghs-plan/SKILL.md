@@ -574,9 +574,49 @@ After each design-review round, if the designer or reviewer read additional file
 
 ### Phase 3: User Approval
 
-After the plan passes review, use AskUserQuestion to request user confirmation:
+After the plan passes review, assemble an Approval Summary block (see below) and use AskUserQuestion to request user confirmation, with the summary block as the question body. This also applies to the early-stop path (round == 1 with PASS, entered directly from Phase 2).
 
-> The plan has completed N rounds of review with no severe or medium issues remaining. Do you approve this plan?
+#### Approval Summary Assembly
+
+Before asking, read small fragments of the plan/review/status files from disk and assemble a plain-text summary block. Extraction rules:
+
+| Block section | Source | How to extract |
+|---|---|---|
+| Plan Summary | Review file `## Plan Summary` section (starting point) + plan file goal/core-approach sections (expansion material) | Read the review file (usually < 100 lines, read it whole) and take the first non-empty paragraph under `## Plan Summary` as the starting point. Then read the plan file's goal/core-approach sections per the read budget below. Synthesize both into a 2-4 sentence summary (~50-150 words): the first sentence states the goal (what problem the plan solves), the next 1-3 sentences state what it concretely does (which files change, what mechanism/module is introduced, which scenarios are covered) — do NOT expand implementation details. If either source is missing, generate from what is available; if all are missing, write `N/A`. |
+| Key Technical Decisions | Plan file `## Plan Design` (and `## Current State Analysis`) sections | Grep `^## ` to locate section headings, then read those sections in segments. Pick decision-like points (technology choices, architecture trade-offs, interface contracts) and rewrite each as a one-line short sentence, at most 5. |
+| Review stats | **Review file** (preferred): `## Issue Summary` section or the `REVIEW COMPLETE \| Verdict: ... \| Severe: X Medium: Y Optimization: Z` signal line at the end of the report. Fallback: the parser JSON `completion_signal` field (only if parsing succeeded and it is still in memory). | Extract from the review file. Do NOT infer counts from dispatcher memory or the JSON `verdict` field — `verdict` only holds PASS/FAIL/null. |
+| Round/budget status | status JSON | Already held by the dispatcher; fill the template directly. |
+
+**Read budget constraints** (to prevent context bloat):
+
+- The review file is usually < 100 lines — read it whole (Plan Summary starting point and Review stats come from this single read).
+- For the plan file, you may read only: the file header, plus the goal/core sections ("背景与目标 / Background and Goals", "方案设计 / Plan Design", "现状分析 / Current State Analysis") located via grep `^## ` — read them in segments, each segment ≤ 60 lines. The summary and the decisions share these reads; do NOT re-read. Do NOT bulk-read the whole plan file into the main conversation.
+- If any field cannot be extracted, write `N/A` and still ask the question — the summary is best-effort and must not introduce a new failure path.
+
+**Line budget** (total block ≤ 34 lines): summary section ≤ 4 lines; decisions ≤ 5 lines; Review Result ≤ 2 lines; Files 2 lines.
+
+**Summary block template** (plain text — no `##`/`**` Markdown syntax in the output):
+
+```
+Plan ready for approval (Round {round}/{max_rounds}, breaches {max_rounds_breaches}/{MAX_BREACHES})
+
+=== Plan Summary ===
+{plan summary — per extraction rules above}
+
+=== Key Technical Decisions ===
+- {decision 1}
+- {decision 2}
+
+=== Review Result ===
+Verdict: PASS | Severe: {X} Medium: {Y} Optimization: {Z}
+{optimization titles line — only if Z > 0}
+
+=== Files ===
+- Plan: <PROJECT_DIR>/.ghs/plans/{plan_file}
+- Review: <PROJECT_DIR>/.ghs/plans/{review_file}
+
+Do you approve this plan?
+```
 
 - **User approves** -> Proceed to Phase 4
 - **User rejects**:
