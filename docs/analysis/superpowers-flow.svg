@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="960" viewBox="0 0 900 960" font-family="-apple-system,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6B7280"/>
+    </marker>
+    <marker id="arrowR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#C62828"/>
+    </marker>
+  </defs>
+
+  <!-- legend -->
+  <g font-size="11" fill="#1F2937">
+    <rect x="628" y="14" width="13" height="13" rx="3" fill="#FFF4D6" stroke="#B8860B"/>
+    <text x="646" y="25">用户动作</text>
+    <rect x="628" y="34" width="13" height="13" rx="3" fill="#E8F0FE" stroke="#1A56A8"/>
+    <text x="646" y="45">流程步骤</text>
+    <rect x="628" y="54" width="13" height="13" rx="3" fill="#EDE7F6" stroke="#5E35B1"/>
+    <text x="646" y="65">子代理</text>
+    <rect x="740" y="14" width="13" height="13" rx="3" fill="#FFEBEE" stroke="#C62828"/>
+    <text x="758" y="25">机械强制/守卫</text>
+    <rect x="740" y="34" width="13" height="13" rx="3" fill="#E8F5E9" stroke="#2E7D32"/>
+    <text x="758" y="45">产物/文档</text>
+    <path d="M746,54 l7,7 l-7,7 l-7,-7 z" fill="#FFF3E0" stroke="#EF6C00"/>
+    <text x="758" y="65">判断分支</text>
+  </g>
+
+  <text x="290" y="26" font-size="14" font-weight="bold" fill="#334155">superpowers:brainstorming（需求澄清 → 设计文档）</text>
+
+  <!-- N0 idea -->
+  <g>
+    <rect x="290" y="40" width="320" height="36" rx="8" fill="#FFF4D6" stroke="#B8860B" stroke-width="1.5"/>
+    <text x="450" y="63" text-anchor="middle" font-size="13" fill="#1F2937">需求 / 想法进入</text>
+  </g>
+  <path d="M450,76 L450,96" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- N1 triage -->
+  <g>
+    <rect x="290" y="100" width="320" height="52" rx="8" fill="#E8F0FE" stroke="#1A56A8" stroke-width="1.5"/>
+    <text x="450" y="120" text-anchor="middle" font-size="13" font-weight="bold" fill="#1F2937">规模分诊（What Do You Actually Know?）</text>
+    <text x="450" y="140" text-anchor="middle" font-size="11" fill="#475569">请求已自足 → 直接做 · 有非平凡缺失 → 开始对话</text>
+  </g>
+  <path d="M610,126 L676,126" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+  <g>
+    <rect x="680" y="108" width="190" height="36" rx="8" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="775" y="131" text-anchor="middle" font-size="12" fill="#1F2937">直接做（退出设计）</text>
+  </g>
+  <path d="M450,152 L450,172" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- N2 conversation loop -->
+  <rect x="230" y="176" width="440" height="104" rx="12" fill="none" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <g>
+    <rect x="250" y="192" width="400" height="72" rx="8" fill="#E8F0FE" stroke="#1A56A8" stroke-width="1.5"/>
+    <text x="450" y="212" text-anchor="middle" font-size="13" font-weight="bold" fill="#1F2937">对话循环（人在环 · 单代理）</text>
+    <text x="450" y="230" text-anchor="middle" font-size="11" fill="#475569">一次一个开放式问题 → 回放 200-300 词 → 用户纠偏</text>
+    <text x="450" y="246" text-anchor="middle" font-size="11" fill="#475569">回放与提问交替贯穿全程</text>
+    <text x="450" y="262" text-anchor="middle" font-size="11" fill="#475569">挖掘 goals / non-goals / anti-goals · 偏好归用户，默认须明示</text>
+  </g>
+  <path d="M450,280 L450,300" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- N3 size the work -->
+  <g>
+    <rect x="290" y="304" width="320" height="48" rx="8" fill="#E8F0FE" stroke="#1A56A8" stroke-width="1.5"/>
+    <text x="450" y="323" text-anchor="middle" font-size="13" font-weight="bold" fill="#1F2937">Size the Work（三档路由）</text>
+    <text x="450" y="341" text-anchor="middle" font-size="11" fill="#475569">中途长大 = 命名的停止条件：停下并升档</text>
+  </g>
+  <path d="M610,328 L676,328" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+  <g>
+    <rect x="680" y="310" width="190" height="36" rx="8" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="775" y="333" text-anchor="middle" font-size="12" fill="#1F2937">小变更 → 常规构建</text>
+  </g>
+  <path d="M450,352 L450,372" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+  <text x="462" y="366" font-size="11" fill="#64748B">项目档 →</text>
+
+  <!-- N4 design doc -->
+  <g>
+    <rect x="290" y="376" width="320" height="56" rx="8" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="450" y="396" text-anchor="middle" font-size="13" font-weight="bold" fill="#1F2937">设计文档（产物）</text>
+    <text x="450" y="413" text-anchor="middle" font-size="11" fill="#475569">docs/superpowers/specs/&lt;date&gt;-&lt;topic&gt;-design.md</text>
+    <text x="450" y="429" text-anchor="middle" font-size="11" fill="#475569">intent · goals/non-goals/anti-goals · 约束 · 已定决策 · 留白</text>
+  </g>
+  <path d="M450,432 L450,452" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- N5 builder check -->
+  <g>
+    <rect x="290" y="456" width="320" height="56" rx="8" fill="#EDE7F6" stroke="#5E35B1" stroke-width="1.5"/>
+    <text x="450" y="476" text-anchor="middle" font-size="13" font-weight="bold" fill="#1F2937">Builder Check（子代理挑刺）</text>
+    <text x="450" y="493" text-anchor="middle" font-size="11" fill="#475569">新鲜子代理扮演施工方：只问『猜错会出大事』的问题</text>
+    <text x="450" y="509" text-anchor="middle" font-size="11" fill="#475569">三堆分类：已有答案 / 我能定（标记） / 只有用户能答</text>
+  </g>
+  <path d="M450,512 L450,532" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- D1 hard gate -->
+  <path d="M450,536 L560,572 L450,608 L340,572 Z" fill="#FFF3E0" stroke="#C62828" stroke-width="2"/>
+  <text x="450" y="568" text-anchor="middle" font-size="12" font-weight="bold" fill="#7F1D1D">HARD-GATE：用户批准设计文档?</text>
+  <text x="450" y="586" text-anchor="middle" font-size="10" fill="#7F1D1D">批准前不建任何东西（含脚手架/依赖/子代理实现）</text>
+  <path d="M340,572 L80,572 L80,228 L226,228" stroke="#C62828" fill="none" stroke-dasharray="6,4" marker-end="url(#arrowR)"/>
+  <text x="72" y="400" text-anchor="middle" font-size="11" fill="#C62828" transform="rotate(-90 72 400)">否 → 回对话继续澄清</text>
+  <path d="M450,608 L450,632" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+  <text x="462" y="624" font-size="11" fill="#2E7D32">批准 → 进入计划</text>
+
+  <text x="290" y="652" font-size="14" font-weight="bold" fill="#334155">superpowers:writing-plans（spec → 可执行计划）</text>
+
+  <!-- N6 task decomposition -->
+  <g>
+    <rect x="290" y="664" width="320" height="64" rx="8" fill="#E8F0FE" stroke="#1A56A8" stroke-width="1.5"/>
+    <text x="450" y="683" text-anchor="middle" font-size="13" font-weight="bold" fill="#1F2937">File Structure + 任务分解</text>
+    <text x="450" y="700" text-anchor="middle" font-size="11" fill="#475569">每任务 = 独立测试周期：失败测试(含断言)→最小实现→通过→commit</text>
+    <text x="450" y="716" text-anchor="middle" font-size="11" fill="#475569">精确路径 · 精确签名 · Interfaces 块 · 全局约束逐字拷贝</text>
+  </g>
+  <path d="M450,728 L450,744" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- N7 self review -->
+  <g>
+    <rect x="290" y="748" width="320" height="64" rx="8" fill="#E8F0FE" stroke="#C62828" stroke-width="1.5"/>
+    <text x="450" y="767" text-anchor="middle" font-size="13" font-weight="bold" fill="#1F2937">自审 5 项（本人清单，非子代理）</text>
+    <text x="450" y="784" text-anchor="middle" font-size="11" fill="#475569">spec 覆盖 · 步骤扫描 · 类型一致 · Review Focus 补测试</text>
+    <text x="450" y="800" text-anchor="middle" font-size="11" fill="#C62828">Proportion：方案远长于 spec = 写成代码不是方案</text>
+  </g>
+  <path d="M450,812 L450,828" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- N8 handoff -->
+  <g>
+    <rect x="290" y="832" width="320" height="44" rx="8" fill="#E8F0FE" stroke="#1A56A8" stroke-width="1.5"/>
+    <text x="450" y="851" text-anchor="middle" font-size="12" font-weight="bold" fill="#1F2937">交接：保存计划 · 用户评审</text>
+    <text x="450" y="868" text-anchor="middle" font-size="11" fill="#475569">docs/superpowers/plans/ · 用户选择执行方式</text>
+  </g>
+  <path d="M450,876 L450,892" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- N9 execution two cols -->
+  <g>
+    <rect x="150" y="896" width="300" height="52" rx="8" fill="#EDE7F6" stroke="#5E35B1" stroke-width="1.5"/>
+    <text x="300" y="915" text-anchor="middle" font-size="12" font-weight="bold" fill="#1F2937">subagent-driven（推荐）</text>
+    <text x="300" y="932" text-anchor="middle" font-size="11" fill="#475569">每任务新鲜子代理 + 独立评审 + 修复≤5轮 + 终审</text>
+    <rect x="470" y="896" width="280" height="52" rx="8" fill="#E8F0FE" stroke="#1A56A8" stroke-width="1.5"/>
+    <text x="610" y="915" text-anchor="middle" font-size="12" font-weight="bold" fill="#1F2937">native 内联执行</text>
+    <text x="610" y="932" text-anchor="middle" font-size="11" fill="#475569">本会话逐任务执行 · 仅末尾一次全分支终审</text>
+  </g>
+  <path d="M420,922 L466,922" stroke="#6B7280" fill="none"/>
+</svg>

@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="820" viewBox="0 0 900 820" font-family="-apple-system,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6B7280"/>
+    </marker>
+    <marker id="arrowR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#C62828"/>
+    </marker>
+  </defs>
+
+  <!-- legend -->
+  <g font-size="11" fill="#1F2937">
+    <rect x="628" y="14" width="13" height="13" rx="3" fill="#FFF4D6" stroke="#B8860B"/>
+    <text x="646" y="25">用户动作</text>
+    <rect x="628" y="34" width="13" height="13" rx="3" fill="#E8F0FE" stroke="#1A56A8"/>
+    <text x="646" y="45">流程步骤</text>
+    <rect x="628" y="54" width="13" height="13" rx="3" fill="#EDE7F6" stroke="#5E35B1"/>
+    <text x="646" y="65">子代理</text>
+    <rect x="740" y="14" width="13" height="13" rx="3" fill="#FFEBEE" stroke="#C62828"/>
+    <text x="758" y="25">机械强制/守卫</text>
+    <rect x="740" y="34" width="13" height="13" rx="3" fill="#E8F5E9" stroke="#2E7D32"/>
+    <text x="758" y="45">产物/文档</text>
+    <path d="M746,54 l7,7 l-7,7 l-7,-7 z" fill="#FFF3E0" stroke="#EF6C00"/>
+    <text x="758" y="65">判断分支</text>
+  </g>
+
+  <!-- N0 user /plan -->
+  <g>
+    <rect x="290" y="20" width="320" height="36" rx="8" fill="#FFF4D6" stroke="#B8860B" stroke-width="1.5"/>
+    <text x="450" y="43" text-anchor="middle" font-size="13" fill="#1F2937">用户 /plan（slash command）</text>
+  </g>
+  <path d="M450,56 L450,72" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- N1 mode activation -->
+  <g>
+    <rect x="290" y="76" width="320" height="56" rx="8" fill="#E8F0FE" stroke="#C62828" stroke-width="2"/>
+    <text x="450" y="97" text-anchor="middle" font-size="13" font-weight="bold" fill="#1F2937">ModeKind::Plan 激活（会话级状态）</text>
+    <text x="450" y="115" text-anchor="middle" font-size="11" fill="#475569">plan.md 模板经 &lt;collaboration_mode&gt; 标签注入</text>
+  </g>
+  <path d="M450,132 L450,148" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- G1 hard guards bar -->
+  <g>
+    <rect x="170" y="152" width="560" height="44" rx="8" fill="#FFEBEE" stroke="#C62828" stroke-width="1.5"/>
+    <text x="450" y="170" text-anchor="middle" font-size="12" font-weight="bold" fill="#7F1D1D">硬边界（L2 状态机拦截）</text>
+    <text x="450" y="187" text-anchor="middle" font-size="11" fill="#7F1D1D">自动 turn 禁止进出 Plan mode · update_plan 工具在 Plan mode 硬拒 · request_user_input 变阻塞</text>
+  </g>
+  <path d="M450,196 L450,216" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- N2 ground -->
+  <g>
+    <rect x="290" y="220" width="320" height="48" rx="8" fill="#E8F0FE" stroke="#1A56A8" stroke-width="1.5"/>
+    <text x="450" y="239" text-anchor="middle" font-size="13" font-weight="bold" fill="#1F2937">Phase 1 环境探索（Ground）</text>
+    <text x="450" y="257" text-anchor="middle" font-size="11" fill="#475569">先探索后提问 · 仅非变异动作（读/搜索/dry-run/测试缓存）</text>
+  </g>
+  <path d="M450,268 L450,288" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- N3 intent chat -->
+  <g>
+    <rect x="290" y="292" width="320" height="48" rx="8" fill="#E8F0FE" stroke="#1A56A8" stroke-width="1.5"/>
+    <text x="450" y="311" text-anchor="middle" font-size="13" font-weight="bold" fill="#1F2937">Phase 2 意图对话</text>
+    <text x="450" y="329" text-anchor="middle" font-size="11" fill="#475569">问到 goal / success criteria / in-out scope / 约束清晰</text>
+  </g>
+  <path d="M450,340 L450,360" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- D1 ambiguity -->
+  <path d="M450,364 L540,388 L450,412 L360,388 Z" fill="#FFF3E0" stroke="#EF6C00" stroke-width="1.5"/>
+  <text x="450" y="393" text-anchor="middle" font-size="12" fill="#1F2937">高影响歧义已清零?</text>
+  <path d="M360,388 L150,388 L150,316 L286,316" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+  <text x="142" y="352" text-anchor="middle" font-size="11" fill="#64748B" transform="rotate(-90 142 352)">否 → 继续问（do NOT plan yet）</text>
+  <path d="M450,412 L450,436" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+  <text x="462" y="428" font-size="11" fill="#2E7D32">是</text>
+
+  <!-- N4 implementation chat -->
+  <g>
+    <rect x="290" y="440" width="320" height="48" rx="8" fill="#E8F0FE" stroke="#1A56A8" stroke-width="1.5"/>
+    <text x="450" y="459" text-anchor="middle" font-size="13" font-weight="bold" fill="#1F2937">Phase 3 实现对话</text>
+    <text x="450" y="477" text-anchor="middle" font-size="11" fill="#475569">追问至 decision complete：接口/数据流/边界/测试/迁移</text>
+  </g>
+  <path d="M450,488 L450,508" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- D2 decision complete -->
+  <path d="M450,512 L540,536 L450,560 L360,536 Z" fill="#FFF3E0" stroke="#EF6C00" stroke-width="1.5"/>
+  <text x="450" y="541" text-anchor="middle" font-size="12" fill="#1F2937">decision complete?</text>
+  <path d="M360,536 L190,536 L190,464 L286,464" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+  <text x="182" y="500" text-anchor="middle" font-size="11" fill="#64748B" transform="rotate(-90 182 500)">否 → 继续追问</text>
+  <path d="M450,560 L450,584" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+  <text x="462" y="576" font-size="11" fill="#2E7D32">是</text>
+
+  <!-- N5 proposed_plan -->
+  <g>
+    <rect x="290" y="588" width="320" height="48" rx="8" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.5"/>
+    <text x="450" y="607" text-anchor="middle" font-size="13" font-weight="bold" fill="#1F2937">输出 &lt;proposed_plan&gt; 块（产物）</text>
+    <text x="450" y="625" text-anchor="middle" font-size="11" fill="#475569">每轮至多一块 · 修订=整块替换 · 3-5 节极简（反膨胀条款）</text>
+  </g>
+  <path d="M450,636 L450,656" stroke="#6B7280" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- N6 client parse -->
+  <g>
+    <rect x="290" y="660" width="320" height="44" rx="8" fill="#FFEBEE" stroke="#C62828" stroke-width="1.5"/>
+    <text x="450" y="678" text-anchor="middle" font-size="12" font-weight="bold" fill="#7F1D1D">客户端流式解析（L3 确定性解析）</text>
+    <text x="450" y="695" text-anchor="middle" font-size="11" fill="#7F1D1D">PlanModeStreamState → plan item 特殊渲染</text>
+  </g>
+
+  <!-- revision long loop -->
+  <path d="M290,682 L80,682 L80,324 L286,324" stroke="#6B7280" fill="none" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
+  <text x="72" y="510" text-anchor="middle" font-size="11" fill="#64748B" transform="rotate(-90 72 510)">用户留在 Plan mode 修订 · 新块完整替换旧块</text>
+
+  <!-- bottom note -->
+  <g>
+    <rect x="170" y="736" width="560" height="60" rx="8" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1"/>
+    <text x="450" y="756" text-anchor="middle" font-size="11" fill="#475569">禁止输出 "should I proceed?" · 退出仅限用户切换模式（模型无自主逃逸路径）</text>
+    <text x="450" y="774" text-anchor="middle" font-size="11" fill="#C62828">注意：文件变异禁令为提示词级（L4/L5），未与 sandbox 策略联动</text>
+    <text x="450" y="790" text-anchor="middle" font-size="11" fill="#475569">反膨胀条款：细节违约推定 —— 不发明 schema/fallback，除非防一个具体实现错误</text>
+  </g>
+</svg>
