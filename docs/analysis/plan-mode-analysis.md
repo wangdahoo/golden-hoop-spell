@@ -1,13 +1,17 @@
 # Plan 技能与 Plan Mode 机制对比分析报告
 
 > 本报告是 `ghs:plan` 技能重构讨论的起点材料。汇总了对四套 plan 机制的源码级分析，比较各自的约束能力，并在文末给出候选改造方向。
+>
+> **v2（2026-10-14）**：沉淀四轮后续讨论——opencode 防漂移机制详解与"计划生产"机制（§3.3-3.4）、Codex `plan.md` 模板 vs ghs designer 模板专题对比（§5）、约束"方向/持有"两分法及改造清单修正（§6.3、§7：C1 重新归类、B2 并入 scope 契约再锚定）。
+>
+> **v3（2026-10-14）**：并入评审循环专题——§7 新增 E 组（E1-E4，讨论稿编号 R1-R4），原 A2 并入 E1，A 组重编号，四病灶分析见 E 组引言。
 
 | 项 | 内容 |
 |---|---|
 | 分析对象 | ghs:plan（本仓库）、OpenAI Codex CLI Plan Mode、OpenCode Plan Mode、superpowers:brainstorming + writing-plans |
 | 代码版本 | ghs @ `cae1a61` (main) · superpowers 7.0.0（官方插件缓存）· codex @ `6cc7d9cc` (2026-10-13) · opencode @ `7410b1c1` (2026-10-14) |
 | 分析方法 | 四套系统源码通读；重点比较对"模型发散"（小需求做成大方案）与"执行后 bug"两种失效模式的防御能力 |
-| 关联分支 | `refactor/ghs-plan-skill` |
+| 关联分支 | `refactor/ghs-plan-skill`（v1 已提交 `431775e`；v2/v3 工作区待提交） |
 
 ---
 
@@ -17,7 +21,9 @@
 2. **ghs:plan 的结构性弱点**：内容侧只有训诫（"Minimal change"、"don't scope-creep"），违反无检测、无后果；所有反馈环都是加法（每条 Severe/Medium issue 必须显式解决，且评审量表没有"范围/过度设计"轴），修订循环是**单调加法棘轮**——小需求五轮下来必然变大。弱指令遵循模型（如 GPT 系）把"遵守预算"花在标了 MUST 的格式项上，内容侧完全自由发挥。
 3. **"执行后一堆 bug"在 ghs 链路是结构性预期**：计划只带 prose 版 Testing Strategy，feature 由实现者自我验收，全链路无独立评审层。superpowers 把失败测试（含断言）直接烧进任务结构，配每任务独立评审 + 修复循环；这是两套防 bug 体系的本质差距。
 4. **Codex/OpenCode 都选择了"单代理 + 人在环"而非"多代理 + 人离线"**：计划在主对话里聊出来，用户全程在线校准；ghs:plan 的三角色架构天然把用户推到末端审批（Phase 3 才首次看到方案，且只是 ≤34 行摘要）。
-5. 改造方向见 [§6](#6-候选改造方向讨论起点)，按"生成时约束 → 入口分诊 → 评审量表 → 防漂移 → 下游衔接"排序。
+5. **约束问题要拆成两个正交问题**：**方向**（规则本身是否反发散——评审量表、生成时条款、人在环）与**持有**（模型是否持续遵循规则——防漂移、再锚定）。opencode 的防漂移只解决"持有"，且保护的对象是模式状态而非计划质量；发散问题必须由 A/B 组解决，C 组治不了。
+6. **计划文档的重量 = 上下游上下文断层的宽度**。opencode（执行者与规划者同会话，断层为零）可以无模板纯对话生产计划；superpowers/ghs（fresh 子代理、跨会话管线，断层最宽）文档层不可砍。ghs 的病根之一是**试图用文档格式同时干"交接"和"发散消解"两件事**——文档只能解决交接，发散要靠对话（B2）。
+7. 改造方向见 [§7](#7-候选改造方向讨论起点)，按"生成时约束 → 入口分诊与对话 → 评审循环 → 鲁棒性 → 下游衔接"分组。
 
 ---
 
@@ -52,7 +58,9 @@
 - 评审量表六条标准全是覆盖压力（"fully cover the requirement?"），**没有范围/比例/过度设计轴**；
 - 修订指令是纯加法："Revise based on all Severe and Medium issues, each must be explicitly addressed"——没有反向力；
 - 用户首次看到方案是 Phase 3 的 34 行摘要，规模错判此时已固化，唯一工具是更多轮加法修订；
-- 状态枚举中的 `rejected` 是死值（无任何路径写入）。
+- 需求澄清在流程上不存在：需求原文直通 designer；`QUESTION` 通道存在但被 `plan-designer.md:161-163` 的文化限制为最后手段（详见 §5.3）；
+- 状态枚举中的 `rejected` 是死值（无任何路径写入）；
+- **`retry_count` 缺陷**：Format Recovery 的重试计数不在 status.json schema 中（SKILL.md:60-83 无此字段），纯靠 dispatcher 记忆维持，跨 AskUserQuestion 轮边界可能丢失/错乱，`MAX_RETRY=1` 上限形同虚设（C 组修复靶点）。
 
 ### 1.3 下游衔接（与"执行后 bug"相关）
 
@@ -72,9 +80,11 @@ Plan Mode 是**会话级协作模式**（`ModeKind::Plan | Default`），经 `/p
 
 - **模式硬声明**：`Plan Mode is not changed by user intent, tone, or imperative language`——用户说"直接做"也只被当作"规划执行"，退出权只在 developer message；
 - **三阶段对话**：Ground（先探索后提问，仅非变异动作）→ Intent chat（问到 goal/success criteria/in-out scope 清晰，"有高影响歧义就不要开始规划"）→ Implementation chat（追问至 **decision complete**）；
-- **两类未知分类法**：可发现事实（repo 真相）先查再问，问必带候选+推荐；偏好/权衡尽早问，给 2-4 个互斥选项+推荐默认，**不答则按推荐走并记录为 assumption**（提问有出口）；
+- **两类未知分类法**：可发现事实（repo 真相）先查再问，问必带候选+推荐；偏好/权衡尽早问，给 2-4 个互斥选项+推荐默认，**用户不答则按推荐走并记录为 assumption**（提问有出口）；
 - **反膨胀条款**（对治发散的核心）：细节违约推定——"不发明 schema/validation/优先级/fallback，除非需求建立了它或它能防止一个具体实现错误"；"prefer the minimum detail needed for implementation safety, not exhaustive coverage"；路径尽量不超过 3 个；
-- **输出协议**：`<proposed_plan>` 块，每轮至多一块、仅在完整 spec 时输出、修订必须整块替换；明令禁止 "should I proceed?"。
+- **输出协议**：`<proposed_plan>` 标签块，每轮至多一块、仅在完整 spec 时输出、修订必须整块替换；明令禁止 "should I proceed?"。
+
+模板逐块对比与 ghs designer 模板的差异见专题 §5。
 
 ### 2.3 机械强制点
 
@@ -100,10 +110,41 @@ Plan mode 是**内置 agent**（`plan`），由 core 插件注册（`packages/co
 ### 3.2 三层机制
 
 1. **权限层（L1 物理强制）**：`edit deny *` + 唯一白名单 `~/.opencode/plan/*` + `question allow`。"写计划文件"本身是需要用户明确要求的例外——计划默认住对话。`Permission.BlockedError` 拦截后还有错误改写（把生硬权限错误翻译成人话）。
-2. **提醒注入层 + 防漂移对账**：切进/切出注入 enter/leave `<system-reminder>`；**每次 context 事件对账最后一条 reminder**，plan 中且缺失→重注入 enter，非 plan 且残留→补 leave（plan.ts:57-73）。这是对"长会话/compaction 导致约束衰减"的框架级解法——约束不依赖模型记得自己处在什么状态。
+2. **提醒注入层 + 防漂移对账**：切进/切出注入 enter/leave `<system-reminder>`；每次 context 事件对账修正（详解见 §3.3）。
 3. **极简提示词层**：基础 prompt 收窄授权推定（"Do not infer authorization for work beyond the user's request"）与自主委派（"Do not spawn subagents unless explicitly asked"）。
 
-**边界**：无方案产出物、无评审环节、无终止问题——赌注完全押在"人在对话里"。约束强度最高的入口，语义约束最薄的流程。
+### 3.3 防漂移对账详解（invariant，不是 event）
+
+**问题**：行为约束只是上下文里的一段文本，会被 compaction 压缩掉、被 revert 回退掉、或被推到上下文远端而影响力衰减。丢失后模型"心智里已经不在 plan mode"，而会话状态上还在——这就是漂移。
+
+**两条注入路径**：
+
+1. **事件路径**（plan.ts:75-96）：订阅 `session.created` / `agent.selected`，切进注入 enter、切出注入 leave。盲区：只在切换时刻触发，之后文本被 compaction 吃掉时**不会有事件通知**。
+2. **不变量对账路径**（plan.ts:57-73）：`session.hook("context")` 在**每次组装请求上下文时**触发。逻辑：
+   - `lastReminder`（plan.ts:114-120）从消息列表**末尾向前**找最后一条内容**精确等于** enter/leave 原文的 user 消息（两段文本是固定常量，字符串全等匹配即可）；
+   - `missing` = 当前 agent 是 plan 且最后一条 reminder 不是 enter → 补注入 enter；`stale` = 当前 agent 不是 plan 且残留 enter → 补注入 leave；
+   - **贴尾插入**（最后一条是 user 消息则插其前，否则追加末尾）——同时照顾两点：LLM 注意力的 recency 效应（约束贴着生成点）与 **KV cache 前缀保温**（往中间插会使其后全部缓存失效，注释原话 "appending near the tail so the cached prefix stays warm"）；
+   - 同时用 `session.synthetic` 把补入的 reminder 持久化回会话记录（`resume: false`，不触发新运行）。
+
+**设计要点**：约束从"事件"（进入模式时注入一次）变成"**不变量**"（上下文最后一条 reminder 必须与当前 agent 匹配）+ **每次请求验证修复**。不追踪丢失原因——无论 compaction、revert 还是未来任何新机制，丢失后的状态都一样：最后一条不对，修就是了。因此能防御所有已知和未知的文本丢失机制。
+
+**分层容错**：即使对账本身失效，权限层仍物理拦截 edit——行为层漂移只降级体验（模型迷路、报错），不突破安全。"绝不漂移"的保证放在不需要模型配合的那一层。
+
+**边界（重要修正）**：防漂移保护的是**模式状态事实**，不是计划质量——它与"发散"无直接关系（详见 §6.3 两分法）。opencode 防发散的真实来源是人在环 + 基础提示词的授权推定收窄，防漂移只是让这个人在环的体验层不漏气。
+
+### 3.4 计划生产：无模板的纯对话
+
+Plan 模式下模型收到的**全部**指令：15 行基础 system prompt（+ 工具使用守则替换）、provider 变体（提到 plan 的仅一句"follow that reminder"，无增量信息）、enter reminder（约 7 行）、工具描述、AGENTS.md、用户消息。**没有**计划结构模板、阶段协议、完成标准、输出格式、反膨胀条款，甚至没有"何时提问"的指引——四家里脚手架最薄。
+
+计划的生产方式：探索 → 与用户来回讨论 → 收敛 → 用户切回 build 模式说"按刚才聊的做"。**对话本身就是计划**，产出物默认不落盘（写 `~/.opencode/plan/` 是需用户开口的例外）。
+
+成立的三个前提（缺一则塌）：
+
+1. **强模型假设**：面向前沿模型，规划素养被假定已内化；
+2. **无上下文断层**（最本质）：切回 build 后执行者是同一会话，全部讨论历史仍在上下文——计划文档的功能本质是跨 agent 的上下文桥梁，opencode 永远不需要这座桥，所以能把文档整个砍掉；
+3. **人在环实时塑形**：坏形状/发散在下一条消息就被用户纠正，活不过两轮。
+
+对比结论：**计划文档的重量 = 上下游上下文断层的宽度**。opencode 在断层为零的一端，ghs（fresh 会话管线）在最宽的一端。gpt 级模型放进这个裸奔方案：发散仍会被人在环当场掐断（不会"执行完才发现"），但计划结构会随模型素养随机波动；且一旦需要跨会话交接，方案立刻失效。
 
 ---
 
@@ -131,9 +172,46 @@ Plan mode 是**内置 agent**（`plan`），由 core 插件注册（`packages/co
 
 ---
 
-## 5. 横向对比
+## 5. 专题：Codex `plan.md` 模板 vs ghs designer 模板
 
-### 5.1 约束强度光谱
+### 5.1 定位：过程模板 vs 形状模板
+
+- **Codex `plan.md`**（129 行）：90% 篇幅教**过程**——怎么探索、什么时候问、问什么、两类未知怎么分、何时才有资格产出；产出物形状只占最后 30 行，且方向是"少写"。
+- **ghs 模板**（SKILL.md 内嵌 ~70 行 + `plan-designer.md` 164 行）：90% 篇幅规定**产出物形状**——六章章节节清单、分隔符协议、信号词；过程只有三行（读快照 → 不够再读源码 → 输出全文）。
+
+一个教"怎么聊出计划"，一个教"写出什么形状的文档"——下面的差异基本都是这个根源的衍生。
+
+### 5.2 逐块对比
+
+| 块 | Codex `plan.md` | ghs 模板 + plan-designer.md |
+|---|---|---|
+| 需求进入 | Phase 2 必聊清单：goal + success criteria、audience、**in/out scope**、constraints、当前状态、偏好权衡；"有高影响歧义就不要开始规划" | Requirement Description **原文直通** prompt；无任何澄清环节 |
+| 探索纪律 | 问人之前**强制先做一轮非变异探索**；两类未知分类法；"Never ask questions you can answer from your environment" | "读快照，不够再读源码"（等价于 Ground，这块 ghs 有）；但无"先查再问"的提问前置规则 |
+| 提问姿态 | **"You SHOULD ask many questions"**；"bias toward questions over guessing"；不答按推荐走并记录为 assumption | **"Use only when the answer genuinely cannot be inferred... Do not use QUESTION as a substitute for your own technical judgment"**（plan-designer.md:161-163） |
+| 完成标准 | **decision complete**——"leaves no decisions to the implementer"，不达标不准出块 | 章节写齐即完成；无完成度定义 |
+| 产出物四大件 | title / summary / **API 变更** / **test cases** / **explicit assumptions**，3-5 节 | 六章节：背景目标 / 现状 / 设计 / 分阶段步骤 / 风险表 / 测试策略（可"灵活调整"削减） |
+| 细节量 | **违约推定**：不发明 schema/fallback，除非"防止一个具体实现错误"；路径 ≤3；"minimum detail for implementation safety, not exhaustive coverage" | "adjust flexibly based on complexity"——唯一比例提示且方向是"灵活"；无上限性条款 |
+| 范围的处理 | 范围是**对话结论**："Do not include a separate Scope section unless genuinely important"——聊清楚就行 | 范围是**文档章节**（1.3 Scope），但没有对话来填它——**模型单方面宣布的范围** |
+| 修订语义 | 新块**完整替换**旧块；用户不满但信息不足 → 回去继续聊、**不准出块** | 针对每条 Severe/Medium "explicitly addressed" + 修订日志——纯加法 |
+
+### 5.3 四个方向性相反的对照点
+
+1. **同一个 QUESTION 机制，两种文化**。ghs **有**与 Codex 等价的提问通道（`QUESTION:` → dispatcher AskUserQuestion 转达，机制上甚至是阻塞式的），但 `plan-designer.md` 把使用姿态定为"最后手段"；Codex 定为第一选项。**机制都在，文化相反**：人离线架构里提问会打断流水线，文档文化系统性地压制提问——"模型自己拿主意"不是能力设计，是流程顺畅的需要。发散的一部分正是这个压制的代价：模型拿主意时替用户做了十几个没人听过的决定。
+2. **Scope：聊出来的结论 vs 写出来的章节**。Codex 明确范围不必写成章节（已在 Phase 2 被用户逐条确认）。ghs 把 Scope 做成模板章节指望 designer "写出来"——没有对话输入，写出来的 scope 就是模型一个人宣布的范围，1.3 节写得越详细，发散越"合法化"。印证：ghs 试图用文档格式干对话的活。
+3. **Assumptions 显式化 vs 决定隐形化**。Codex 要求最终计划必带"显式假设与所选默认值"——用户没答的偏好按推荐走但**必须留记录**让人事后能推翻；superpowers 同款（"任何你猜的都标记为你的猜测"）。ghs 无此机制：designer 的每个自作主张都溶解在正文里，Phase 3 的 34 行摘要根本无从区分"你的需求"和"它的决定"。**发散不可怕，隐形发散才可怕。**
+4. **修订是替换还是叠加**。Codex：修订=完整重出一块，信息不足时禁止出块；ghs：对 issue 清单逐条打补丁 + 追加修订日志。后者天然单调递增，前者每轮强制重新对齐全文，至少给了收缩一个制度性入口。
+
+### 5.4 约束与需求澄清的总账
+
+- **需求澄清**：Codex 把澄清作为**设计的前置阶段**（产物冻结为计划的 Assumptions 与范围边界），澄清工具有工具级地位。ghs 的澄清**在流程上不存在**；实际发生澄清功能的地方是评审循环里 reviewer 查 requirement coverage 缺口——**用质量门冒充澄清**，且这是棘轮的主要燃料：每轮都能"发现覆盖不全"→ designer 补东西。
+- **约束**：Codex 的约束是**生成时**的（问清楚才准写、细节违约推定、decision complete 才准出块——违规内容根本不被生产）；ghs 的是**产出后**的（放开写 → 评审过滤），而过滤标准无范围轴、过滤动作是加法。再叠加约束局部性：Codex 规则约束单轮小输出，ghs 模板约束一次性长输出——弱模型对前者的遵循度天然远高于后者。
+- **可直接翻译的条款**：反膨胀三连句、QUESTION 姿态反转、两类未知、assumptions 必填、decision-complete 定义——**这些就是 `plan.md` 段落的翻译，而 Codex 已在 GPT 系模型上验证过它们有效**（它就是给 GPT 写的模板）。
+
+---
+
+## 6. 横向对比
+
+### 6.1 约束强度光谱
 
 针对"模型发散/越界"失效，机制按强度分五级：
 
@@ -147,13 +225,15 @@ Plan mode 是**内置 agent**（`plan`），由 core 插件注册（`packages/co
 
 **四家的落位**：ghs:plan 强在 L3（但只用于格式）与流程终止性，内容侧在 L5；superpowers 强在 L4 + 人类在线校准；codex 强在 L2/L3 + L4 反膨胀条款（变异禁令本身在 L5）；opencode 强在 L1（变异）但流程语义约束几乎为零。
 
-### 5.2 关键维度对比
+### 6.2 关键维度对比
 
 | 维度 | ghs:plan | Codex Plan Mode | OpenCode Plan Mode | superpowers 组合 |
 |---|---|---|---|---|
 | 形态 | 三角色流水线 | 会话协作模式 | 内置 agent | 双技能接力 |
 | 用户角色 | 末端审批者（34 行摘要） | 全程对话对象 | 全程对话对象 | 全程对话对象 + 双门批准 |
-| 计划产出物 | 6 章节完整文档 | `<proposed_plan>` 3-5 节极简 | 无（住对话） | spec 文档 + 任务化计划 |
+| 计划生产脚手架 | 最厚（模板+三角色协议+解析器+状态机） | 中（对话协议模板+解析协议） | ≈0（7 行 reminder） | 厚（对话协议+文档格式+TDD 结构+自审） |
+| 计划存在形式 | 一份文档 + 快照 + 评审报告 | `<proposed_plan>` 块（对话内） | 对话本身（默认不落盘） | 两份文档（spec + 计划） |
+| 计划为谁而写 | 后续 sprint/code 会话 | 人 + 可交接的"另一个 agent" | 人（同会话继续用） | fresh 实现者子代理 |
 | 细节量态度 | 无态度（模板默认全给） | 最小细节推定 | — | decision-complete + Proportion 托底 |
 | 反馈环方向 | 单向加法（棘轮） | 双向（对话可缩小范围） | 双向 | 双向（YAGNI/nothing extra/Proportion） |
 | 防发散 | 弱（L5 训诫） | 中强（反膨胀条款 + 人在环） | 强（人在环，无机制） | 强（分诊 + non-goals + 比例自检） |
@@ -162,40 +242,65 @@ Plan mode 是**内置 agent**（`plan`），由 core 插件注册（`packages/co
 | 格式确定性 | 强（4 层 fallback） | 强（proposed_plan 解析） | 强（权限层无关格式） | 无（信任模型输出） |
 | 上下文卫生 | 强（快照/读预算/零注入） | 一般 | 一般（防漂移对账） | 一般（worktree + 新鲜子代理） |
 
-### 5.3 两个结构性洞察
+### 6.3 结构性洞察
 
 1. **加法棘轮 vs 双向力**：ghs:plan 每个反馈环（评审→修订、拒绝→修订）都只增不减；其余三家都有显式的"缩小"力——codex 的"细节违约推定"、superpowers 的 "nothing extra"/YAGNI/Proportion、人在环对话本身。**没有反向力的评审循环会放大任何 over-production 倾向**——这正是 GPT 下"小需求拉成大的"的机制解释。
-2. **约束的局部性**：superpowers/codex 的约束多是"局部即时"（一次一个问题、一步一个动作、一块完整 plan），弱模型也能跟；ghs:plan 的内容约束是"全局延迟"（整个方案设计对、评审兜底、用户最后看），要求弱模型在数千 token 生成中持续持有政策——恰恰是弱模型做不到的。ghs 把非协商项（MUST）标在了格式上，而最需要约束的内容侧从未获得同等地位。
+2. **约束的局部性**：superpowers/codex 的约束多是"局部即时"（一次一个问题、一步一个动作、一块完整 plan），弱模型也能跟；ghs:plan 的内容约束是"全局延迟"（整个方案设计对、评审兜底、用户最后看），要求弱模型在数千 token 生成中持续持有政策。ghs 把非协商项（MUST）标在了格式上，而最需要约束的内容侧从未获得同等地位。
+3. **约束的方向 vs 持有（正交两分）**：**方向** = 规则本身是否反发散（评审量表有没有范围轴、生成时有没有违约推定、人是否在环）；**持有** = 模型是否在第 4 轮仍然遵循规则（防漂移、再锚定）。opencode 的防漂移、ghs 的 status.json 对账都只属于"持有"；"持有"做得再完美，方向错了照样发散。两组改进不能互相替代，评估改造方案时应先问它治哪一组。
+4. **文档解决交接，对话解决发散；文档重量 = 断层宽度**：计划文档的功能本质是跨 agent 的上下文桥梁。opencode 无断层故可纯对话；ghs 断层最宽故文档不可砍——但 ghs 现在试图让文档同时承担"发散消解"，这就是吃力的根源。发散的消化必须前移到对话阶段（B2），文档只负责把聊明白的结论固化交接。
+5. **生成时约束 > 产出后过滤**：Codex 的违规内容根本不被生产出来；ghs 的先生产再过滤，且过滤标准（severity）无范围轴、过滤动作（修订）是加法。把约束从"产出后"前移到"生成时"是 A 组的立论基础。
 
 ---
 
-## 6. 候选改造方向（讨论起点）
+## 7. 候选改造方向（讨论起点）
 
 以下按性价比与依赖关系分组。每条标注来源、改动量（S/M/L）、主要权衡。**均为候选，待讨论取舍。**
 
-### A 组：生成时约束（改 designer 模板与评审量表，改动小、直击发散）
+### A 组：生成时约束（designer 模板与修订指令，改动小、直击发散）
 
 | # | 方向 | 来源 | 改法 | 量 | 权衡 |
 |---|---|---|---|---|---|
-| A1 | 反膨胀条款进 designer 模板 | codex plan.md | 加入细节违约推定："不发明 schema/validation/fallback/抽象层，除非需求建立了它或它能防止一个具体实现错误"；"最小细节服务于实现安全，非穷尽覆盖" | S | 可能压制必要的深度设计，需保留"防具体错误"例外口 |
-| A2 | 评审量表加范围轴 | 分析 §5.1 | 新增严重度定义：超出需求范围/无需求支撑的抽象 = 阻塞级；评审标准加一条双向的 "Is every part warranted by the requirement? (nothing extra)" | S | 评审者主观性上升，需在 plan-reviewer.md 给出判例 |
-| A3 | 修订指令双向化 | 分析 §5.3 | 修订模板加一句 "and remove anything not required by the requirement"；修订日志要求记录"删了什么" | S | 几乎无风险 |
-| A4 | Approval Summary 加比例指标 | writing-plans Proportion | dispatcher 已分段读方案，顺手计算"方案行数 / 需求描述行数"，超阈值在摘要块显式示警 | S | 阈值需标定；纯行数可能被表格/代码块干扰 |
+| A1 | 反膨胀条款 + 完成标准进 designer 模板 | codex plan.md | 细节违约推定："不发明 schema/validation/fallback/抽象层，除非需求建立了它或它能防止一个具体实现错误"；"最小细节服务于实现安全，非穷尽覆盖"；补 decision-complete 完成度定义（"不留任何决定给实现者"） | S | 可能压制必要深度设计，保留"防具体错误"例外口 |
+| A2 | 修订指令双向化 + 替换语义 | §5.3-4 | 修订模板加 "and remove anything not required by the requirement"，修订日志要求记录"删了什么"；评估采纳 Codex 的"修订=整块重新对齐"语义（替代逐条打补丁；评审侧配套见 E2） | S | 整块替换可能丢失好内容，需权衡 |
+| A3 | Assumptions 必填节 | codex / superpowers | 模板强制 Assumptions 节：所有未经用户确认的默认选择必须显式列出，Approval Summary 摘要中单列；同时作为 E1 契约核查与 E3 假设挑战的输入 | S | 无明显风险 |
+| A4 | Approval Summary 加比例指标 | writing-plans Proportion | dispatcher 已分段读方案，计算"方案行数 / 需求描述行数"，超阈值在摘要块显式示警 | S | 阈值需标定；纯行数可能被表格/代码块干扰 |
 
-### B 组：流程结构（入口分诊 + intent 校准，改动中、收益最大）
-
-| # | 方向 | 来源 | 改法 | 量 | 权衡 |
-|---|---|---|---|---|---|
-| B1 | 入口规模分诊 | brainstorming | Phase 0 增加三档判断：请求自足→建议直接做；简单需求→单轮 design+review（max_rounds=1）；复杂→完整流程。分诊结果经 AskUserQuestion 与用户确认 | M | 多一次交互；分诊标准需要写清楚 |
-| B2 | Intent 回放前置 | codex Phase 2 + brainstorming Play It Back | Phase 0.5 之后、Phase 1 之前，dispatcher 输出 ≤200 词理解回放 + in-scope / **out-of-scope（non-goals）** 清单，用户确认后才进设计；non-goals 写入 designer prompt 与评审输入 | M | 最关键的防线：把规模错判从第 5 轮提前到第 1 分钟；增加一轮交互 |
-| B3 | 两类未知分类法进 QUESTION 协议 | codex | designer/reviewer 的 QUESTION 分为"可发现事实"（应自查）与"偏好权衡"（才允许问），问必带候选+推荐默认 | S | 无明显风险 |
-
-### C 组：鲁棒性与状态（借鉴 opencode，改动小）
+### B 组：流程结构（入口分诊 + 对话 + scope 契约，改动中、收益最大）
 
 | # | 方向 | 来源 | 改法 | 量 | 权衡 |
 |---|---|---|---|---|---|
-| C1 | 状态强制重读（防漂移） | opencode 防漂移对账 | SKILL.md 将"每个阶段动作前必须重读 status.json 并核对当前 round/breaches"从描述升格为硬前置步骤（类似 opencode 每请求对账） | S | 增加少量 token 开销 |
-| C2 | 清理死枚举 `rejected` | 本报告 §1.2 | 要么实现它（Phase 3 拒绝且用户选"接受现状前先明确拒绝"），要么从枚举移除 | S | 无 |
+| B1 | 入口规模分诊 | brainstorming | Phase 0 增加三档判断：请求自足→建议直接做；简单需求→单轮 design+review（max_rounds=1）；复杂→完整流程。分诊结果经 AskUserQuestion 与用户确认 | M | 多一次交互；分诊标准需写清 |
+| B2 | Intent 回放 + **scope 契约冻结与再锚定** | codex Phase 2 + brainstorming Play It Back + opencode 再锚定模式 | Phase 0.5 后、Phase 1 前，dispatcher 输出 ≤200 词理解回放 + in-scope / **out-of-scope（non-goals）** 清单，用户确认后冻结为 **SCOPE CONTRACT**；此后**每轮** designer / reviewer prompt 原文重注该契约块（opencode 防漂移的"每次生成点再锚定"模式移植到范围约束上——锚的内容不是模式状态而是批准过的范围）：`## SCOPE CONTRACT (frozen at kickoff — do NOT expand) ... If a review issue seems to require work outside this contract, flag it as QUESTION instead of silently expanding.` | M | 最关键防线：规模错判从第 5 轮提前到第 1 分钟 + 约束不随轮次衰减；增加一轮交互 |
+| B3 | QUESTION 姿态反转 + 两类未知 | codex（§5.3-1） | 替换 plan-designer.md 的 QUESTION 使用限制（"最后手段"→"偏好/权衡类问题应主动问"，保留"可发现事实先自查"）；问题必须带 2-4 个互斥选项 + 推荐默认；不答按推荐走并记入 Assumptions | S | 与人离线架构有张力：提问打断流水线——仅放开"高影响偏好"类提问可折中 |
+
+### E 组：评审循环改造（治对抗环的方向、收敛与独立性）
+
+> 2026-10-14 评审专题讨论产出，讨论稿编号 R1-R4。
+
+现有评审环的**存在价值成立**（设计缺陷实现后修复贵 10 倍；Codex 敢删评审环靠的是人在环微评审 + 反膨胀压出的 3-5 节小受检面 + 会话内执行即暴露——ghs 三条都没有且执行在下游子代理，删了评审，方案缺陷直接漏成实现 bug），但有四个病灶：
+
+1. **加法棘轮**（§1.2）：修订只加不减，评审者从不说"删掉这个"；
+2. **PASS 标准奖励膨胀**：通过标准 = 零 Severe/Medium，而评审只罚遗漏、不罚多余 → designer 可用"把一切 conceivable 的都处理了"换快速 PASS——评审环在数学上奖励膨胀；
+3. **伪独立**：designer/reviewer 共享需求原文、快照、模型家族——需求被误读时两者共享同一误读，评审环防不住最贵的失效（需求误解），只防得住便宜的（设计错误）；
+4. **全量重写 + 全量重评无收敛压力**：每轮全新全评总能在未评过的维度找到新 nit，循环天然不收敛、重写引入回归；对比 SDD 的定向修复 + scoped re-review。
+
+优先级：**E2 → E1 → E3**（E2 无依赖可先行；E4 依赖 E1+E2 落地后再动）。
+
+| # | 方向 | 来源 | 改法 | 量 | 权衡 |
+|---|---|---|---|---|---|
+| E1 | 评审基准换为 scope 契约 + Unwarranted 严重度（吸收原 A2） | 病灶 1/2 + B2 | reviewer prompt 注入冻结的 SCOPE CONTRACT + Assumptions；评审改两段：先**契约核查**（方案每个主要部分映射到契约条目，映射不上 = 新增 **Unwarranted** 阻塞级，处理方式是**删除**——循环的反向力），后质量核查（Severe/Medium/Opt 保留）；PASS 对称化 = 零 Severe/Medium **且** 零 Unwarranted | M | 依赖 B2（契约存在）；契约质量决定该环上限；需在 plan-reviewer.md 补 Unwarranted 判例 |
+| E2 | 定向修订 + 定向复审（scoped re-review） | SDD 修复循环（病灶 4） | Round 2+ reviewer 职责收窄为三条：逐条 verdict 上轮 finding（ADDRESSED / NOT ADDRESSED）；只在**本轮改动章节**报告新 Severe/Medium；未改章节的观察入 deferred observations，不延长循环；designer 侧对应"只重写受影响章节 + 显式声明未变更部分" | M | 需改 Phase 1/2 Handling 文本；"只重写章节"与现有"输出全文"协议有张力（可折中为整份输出 + diff 纪律） |
+| E3 | 评审者视角注入 | 病灶 3 | 两条零结构成本措施：① **假设挑战**——Assumptions 清单交 reviewer，逐条回答"若此假设错误，方案哪部分崩塌"（对抗性提问模拟用户视角；reviewer 相对 designer 唯一的真实增值就是新鲜眼睛 + 蓄意唱反调）；② **需求复述前置**——评审动笔前用三句话复述理解的需求，随报告落盘，Phase 3 供用户对比"评审者理解的需求" vs "我要的需求"，把理解偏差从隐形变为可见 | S | 弱模型会敷衍成格式——评审者档位不能低于 designer（见待决策 #6） |
+| E4 | 轮次降档：max_rounds 默认 5→2 | 本组分析 | E1+E2 落地后定向修订应一轮收敛；收敛不了 = 方向问题（范围错），应弹回 B2 重放而非硬修；复杂需求才显式升档 | S | 依赖 E1+E2 先落地，否则收敛更难 |
+
+### C 组：鲁棒性与状态（治"持有"不治"方向"，改动小）
+
+> **定位声明**：本组解决的是约束的**持有**问题（轮次/重试计数漂移），与"发散"无直接关系（见 §6.3-3）。治发散靠 A/B 组。
+
+| # | 方向 | 来源 | 改法 | 量 | 权衡 |
+|---|---|---|---|---|---|
+| C1 | 状态对账协议 + retry_counts 持久化 | opencode 防漂移 + §1.2 缺陷 | 已有 9 点具体设计（讨论稿）：新增 State Recheck Protocol 子节定义 G1-G5 五个关口（Phase 1 spawn / Phase 2 spawn / Phase 2 FAIL 分支 / Phase 3 reject 分支 / Format Recovery 重试），每关口动作前强制 Read status.json 并只以刚读到的值做分支；status.json schema 补 `retry_counts` 字段（修复纯内存计数缺陷，随成功解析归零）；写穿规则（状态变更与文件写入同轮完成）；Key Constraints #4 追加"文件是 dispatcher 自身状态的唯一真相源" | S | 每会话 +5 次 Read（<1KB/次）；仍是提示词级约束，防"忘记核对"不防"故意无视" |
+| C2 | 清理死枚举 `rejected` | §1.2 | 要么实现它，要么从枚举移除 | S | 无 |
 
 ### D 组：下游衔接（跨技能，超出 plan 单技能范围，单列讨论）
 
@@ -208,9 +313,11 @@ Plan mode 是**内置 agent**（`plan`），由 core 插件注册（`packages/co
 
 1. **形态**：保持三角色流水线（修内容侧），还是收敛为"人在环受限会话"（B2 是最低成本的中间态）？
 2. **用户介入深度**：B1/B2 各加一轮交互，可接受度如何？是否做成可跳过（superpowers 的"别问了直接做"出口）？
-3. **A 组先行**：A1-A4 均为模板/量表级小改，是否作为第一期独立落地，与 B 组解耦？
-4. **D 组范围**：本次重构是否包含 ghs:code 侧（D2），还是严格限定在 plan 技能？
-5. **评审者与设计者的模型档位**：是否在 SKILL.md 中显式建议 designer/reviewer 使用更强模型（当前仅快照子代理指定 haiku）？
+3. **A 组先行**：A1-A4 均为模板/指令级小改（且条款已在 GPT 系模型上被 Codex 验证），是否作为第一期独立落地，与 B/E 组解耦？
+4. **B3 的张力**：提问姿态反转与人离线架构冲突，是全面放开（向 Codex 靠拢）还是仅放开高影响偏好类提问？
+5. **D 组范围**：本次重构是否包含 ghs:code 侧（D2），还是严格限定在 plan 技能？
+6. **评审者与设计者的模型档位**：评审者档位不低于 designer（评审专题已倾向确认，E3 的假设挑战依赖判断力）；designer 是否在 SKILL.md 中显式建议更强模型（当前仅快照子代理指定 haiku）？
+7. **评审轮次默认值**：E4 提议 E1/E2 落地后将 max_rounds 默认 5→2（复杂需求显式升档），是否采纳？
 
 ---
 
@@ -220,7 +327,13 @@ Plan mode 是**内置 agent**（`plan`），由 core 插件注册（`packages/co
 |---|---|
 | ghs:plan | `plugin/skills/ghs-plan/SKILL.md` · `plugin/shared/references/plan-designer.md` · `plugin/shared/references/plan-reviewer.md` · `plugin/shared/scripts/parse_delimited_output.py` · `plugin/skills/ghs-sprint/SKILL.md` · `plugin/skills/ghs-code/SKILL.md` |
 | Codex | `codex-rs/collaboration-mode-templates/templates/plan.md` · `codex-rs/core/src/tools/handlers/plan.rs` · `codex-rs/core/src/session/turn_input.rs` · `codex-rs/core/src/session/turn.rs`（PlanModeStreamState） · `codex-rs/protocol/src/config_types.rs`（ModeKind） |
-| OpenCode | `packages/core/src/plugin/plan.ts` · `packages/schema/src/agent.ts` · `packages/core/src/session/runner/prompt/system.txt` · `packages/core/src/plugin/system-prompt/gpt.txt` |
+| OpenCode | `packages/core/src/plugin/plan.ts` · `packages/schema/src/agent.ts` · `packages/core/src/session/runner/prompt/system.txt` · `packages/core/src/session/system-prompt.ts` · `packages/core/src/plugin/system-prompt/gpt.txt` |
 | superpowers | `skills/brainstorming/SKILL.md` · `skills/brainstorming/builder-check-prompt.md` · `skills/writing-plans/SKILL.md` · `skills/subagent-driven-development/SKILL.md`（执行侧） |
 
 （codex/opencode 源码为临时克隆，位于 `/tmp/planmode-src/`，未纳入本仓库。）
+
+## 变更记录
+
+- v1（2026-10-14，提交 `431775e`）：初版。四套机制剖析 + 四张 SVG 流程图 + 约束光谱 + 改造方向 A-D 组。
+- v2（2026-10-14）：沉淀四轮讨论——§3.3 防漂移详解（不变量 vs 事件）；§3.4 计划生产机制（无模板纯对话、三前提、断层宽度规律）；§5 Codex 模板 vs ghs 模板专题对比（四方向性对照）；§6.3 新增洞察 3-5（方向/持有两分、文档与对话分工、生成时约束）；§7 修正（C1 重新归类为鲁棒性组并附 G1-G5 关口设计与 retry_counts 缺陷、B2 并入 scope 契约冻结与再锚定、B3 姿态反转、A 组增补 A4/A5 与整块替换语义）。
+- v3（2026-10-14）：并入评审循环专题——§7 新增 E 组（E1-E4，含四病灶分析与优先级 E2→E1→E3），原 A2（评审量表范围轴）吸收进 E1，A 组重编号（原 A3/A4/A5 → A2/A3/A4），待决策清单增至 7 项（新增 E4 轮次降档决策）。
