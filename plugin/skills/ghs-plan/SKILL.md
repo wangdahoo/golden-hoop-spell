@@ -146,19 +146,22 @@ Pass criteria: zero Unwarranted, zero Severe, zero Medium issues.
 
 5. **Generate file identifier**: Create `{date}-{slug}` based on current date and the requirement topic.
 
-6. **Initialize status file**: Write the status JSON per the schema, "status": "designing", "lane": "<light | full>"（自足出口不写文件，直接退出）.
+6. **Initialize status file**: Write the status JSON per the schema, "status": "designing", "lane": "<light | full>" (the self-sufficient exit writes no file — it exits directly at step 3).
 
 ### Light Lane L (zero subagents, merges at Phase 6)
 
 1. **Dispatcher drafts the contract header** (Phase 2 template, six pieces + Global
    Constraints) and **ONE task card** (Phase 3 task-card serialization format) directly —
    reading a handful of project files to pin exact paths is allowed.
-2. **Write** `{plan_file}` = 契约头 + 任务卡. Set `pending_approval`.
-3. **Single merged round**: ONE AskUserQuestion showing 契约头 + 任务卡 —
-   "确认物化 / 调整后物化 / 升完整档"：
-   - 确认物化 → Phase 6（共用 `tasks_to_features.py`）。
-   - 调整后物化 → dispatcher 原地修改后再问一次（仅一次），然后 Phase 6。
-   - 升完整档 → `lane: "full"`，回 Phase 1（已写的 `{plan_file}` 作为契约头起点保留）。
+2. **Write** `{plan_file}` = contract header + task card. Set `pending_approval`.
+3. **Single merged round**: ONE AskUserQuestion showing the contract header + task card —
+   options `确认物化` / `调整后物化` / `升完整档`:
+   - `确认物化` → Phase 6 (shared `tasks_to_features.py`).
+   - `调整后物化` → the dispatcher edits the file in place, asks once more (once only), then Phase 6.
+   - `升完整档` → set `lane: "full"`, return to Phase 1. The written `{plan_file}` is kept as the
+     contract-header starting point: preserve the contract header (everything before the first
+     `### Task ` heading) verbatim and strip the old task card — the full-lane designer re-derives
+     the task breakdown in Phase 3. State the strip to the user (plain text, no question round).
 4. Reviewers do not run on this lane; the merged round IS the gate. Full-lane runs keep
    review Step 1 contract mapping as the backstop for anything mis-triaged as light.
 
@@ -316,7 +319,7 @@ Do NOT attempt to write any files. Just output the content between the delimiter
 
    > **Copy this command verbatim, only replacing the `<placeholders>`.**
 
-   Path: `<PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.context.raw` (the `.tmp/` subdirectory is created once in Phase 0 init step 3).
+   Path: `<PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.context.raw` (the `.tmp/` subdirectory is created once in Phase 0 init step 4).
 
 3. Invoke the parser helper via `--input-file` (shell never sees the response content — zero injection surface):
 
@@ -472,13 +475,13 @@ If the requirement spans multiple independent subsystems with no shared contract
 
 1. **Hold the subagent response in memory for the duration of parse.** Do NOT persist it to a post-mortem `.raw` file in the main `.ghs/plans/` directory on the happy path — only the `.tmp/` scratch file in step 3 exists transiently and is deleted in step 5. This is the key distinction from the old behavior: the main `.ghs/plans/` directory stays clean of raw files on success, but the response is briefly on disk under `.tmp/` for the duration of the parser call (which `--input-file` requires).
 
-2. **SPLIT_SUGGESTED pre-check**: If the response contains a line matching ^SPLIT_SUGGESTED:\s*(.+)$, use AskUserQuestion to let the user decide: 拆分（当前 plan 置 status: "aborted"，把建议的子 plan 划分告知用户，各自后续走完整流程）/ 合并（附用户理由，重派 designer，回到本 Phase 步骤 1）。
+2. **SPLIT_SUGGESTED pre-check**: If the response contains a line matching ^SPLIT_SUGGESTED:\s*(.+)$, use AskUserQuestion to let the user decide: 拆分 (set the current plan's status to "aborted", tell the user the suggested sub-plan split; each sub-plan later runs the full flow) / 合并 (append the user's reason and re-dispatch the designer, returning to this Phase's step 1).
 
 3. Write the response verbatim to a **temporary file** for parser input (this is a scratch file under `.tmp/`, not a post-mortem raw in the main directory):
 
    > **Copy this command verbatim, only replacing the `<placeholders>`.**
 
-   Path: `<PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.plan.raw` (the `.tmp/` subdirectory is created once in Phase 0 init step 3).
+   Path: `<PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.plan.raw` (the `.tmp/` subdirectory is created once in Phase 0 init step 4).
 
 4. Invoke the parser helper via `--input-file` (shell never sees the response content — zero injection surface):
 
@@ -495,7 +498,7 @@ If the requirement spans multiple independent subsystems with no shared contract
 5. Read the JSON object from stdout. **Delete the temporary file from step 3** (whether parse succeeded or failed — the temp file's job is done; persistence decisions are separate). Then branch on `status`:
 
    - **`ok`** or **`fallback_used`**:
-     - `ok`/`fallback_used` 时 **dispatcher 以"契约头 + 正文"拼接覆盖写** `{plan_file}`：Read 现有文件得契约头（Phase 2 冻结内容，物理不经 designer），正文取解析 `content`；若正文以 `# {Plan Title}` 或重复契约头开头，剥离至 `## Current State` 起。`fallback_used` 时警告注释 prepend 到正文前、契约头之后。
+     - On `ok`/`fallback_used`, **the dispatcher overwrites `{plan_file}` with contract header + body**: Read the existing file for the contract header — everything before the first `### Task ` heading (the Phase 2 frozen content; physically never routed through the designer); the body is the parsed `content`; if the body starts with `# {Plan Title}` or a duplicated contract header, strip it down to `## Current State`. On `fallback_used`, prepend the warning comment after the contract header, before the body.
      - **No post-mortem raw file is created on the happy path** (unless `keep_raw_on_success: true` in status.json — see [## State Tracking](#state-tracking)). Update status to `reviewing`. Notify the user (as plain text in your response — this is informational, not a decision point, so do NOT use AskUserQuestion) if fallback was used. Proceed to Phase 4.
    - **`empty`** / **`malformed`** with `retry_counts.plan < MAX_RETRY (=1)`:
      1. **Now persist the response to a post-mortem raw file in the main directory** — this is the only time a `.raw` file lands in the main `.ghs/plans/` directory:
@@ -575,7 +578,7 @@ go in the report's Builder Questions section.
 
 4. **Branch on verdict** (read status.json first):
 
-   - **PASS** (`reviewing`): if Builder Questions had answers → ONE touch-up dispatch to the designer (Phase 3 template + appendix: "Apply these user answers: <answers>. Change nothing else; output the FULL body.") → concatenate 契约头 + 正文, overwrite plan file. **No re-review after a touch-up.** If no answers → proceed directly. Set `pending_approval`, go to Phase 5.
+   - **PASS** (`reviewing`): if Builder Questions had answers → ONE touch-up dispatch to the designer (Phase 3 template + appendix: "Apply these user answers: <answers>. Change nothing else; output the FULL body.") → concatenate the contract header + body, overwrite plan file. **No re-review after a touch-up.** If no answers → proceed directly. Set `pending_approval`, go to Phase 5.
    - **FAIL** (`reviewing` → set `revising`): ONE targeted revision dispatch — Phase 3 template + appendix:
 
      ```
@@ -589,9 +592,12 @@ go in the report's Builder Questions section.
      Expanding beyond the findings is forbidden. Output the FULL body.
      ```
 
-     Concatenate 契约头 + 正文, overwrite plan file, set `reviewing`, then ONE targeted re-review dispatch (same template, `Mode: TARGETED RE-REVIEW`, prompt appended with the previous findings list verbatim and the instruction: "verify each finding ADDRESSED/NOT ADDRESSED + check touched sections for fresh damage; do not re-run the full protocol"). Write the new report over `<review_file>`.
+     Concatenate the contract header + body, overwrite plan file, set `reviewing`, then ONE targeted re-review dispatch (same template, `Mode: TARGETED RE-REVIEW`, prompt appended with the previous findings list verbatim and the instruction: "verify each finding ADDRESSED/NOT ADDRESSED + check touched sections for fresh damage; do not re-run the full protocol"). Write the new report over `<review_file>`.
      - Re-review clean (`Unwarranted: 0 Severe: 0 Medium: 0`, and all prior findings ADDRESSED) → `pending_approval`, Phase 5.
-     - Residue remains → set `final_fix_pending: true`, ONE final revision dispatch (same targeted appendix with only the surviving findings; **no re-review**), overwrite plan file, then `pending_approval`, Phase 5.
+     - Residue remains → AskUserQuestion, user's call (spec cap flow — never automatic):
+       - `再修一次（最后一次，无复审）` → set `final_fix_pending: true`, ONE final revision dispatch (same targeted appendix with only the surviving findings; **no re-review**), overwrite plan file, then `pending_approval`, Phase 5.
+       - `带瑕疵接受` → write the accepted-with-fail marker as the FIRST line of `{plan_file}`: `<!-- WARNING: accepted with unfixed issues; S=<X> M=<Y> -->` (`<X>`/`<Y>` = surviving Severe/Medium counts from the latest `<review_file>`), then `pending_approval`, Phase 5 — the approval surface already lists the residue, and Phase 6 turns the marker into the `accepted_with_fail` audit flag and commit suffix.
+       - `中止` → status `aborted`, stop.
 
 5. **`final_fix_pending` discipline**: while `true`, only one targeted revision is allowed and no further review runs. Clear the flag when entering `pending_approval` or `aborted`. This flag is the on-disk form of the 4-call hard cap — it survives restarts.
 
@@ -606,20 +612,20 @@ contract. Assemble (≤ ~40 lines total) and ask via AskUserQuestion:
 
 | Block | Source |
 |---|---|
-| 契约头 | Read `<plan_file>` top — paste Intent / Goals / Non-Goals / Anti-Goals verbatim (Decisions/Open Space/Global Constraints 可折叠为一行计数) |
+| 契约头 | Read `<plan_file>` top — paste Intent / Goals / Non-Goals / Anti-Goals verbatim (Decisions/Open Space/Global Constraints may collapse to a one-line count) |
 | 任务清单 | Grep `^### Task ` lines from `<plan_file>` (title line only) |
 | 评审残留 | Latest `<review_file>`: signal counts + surviving finding titles (one line each; "无" if PASS with none) |
-| Assumptions | `<plan_file>` 的 Assumptions 节逐条（"None" 则省略该块） |
+| Assumptions | The `<plan_file>` Assumptions section, item by item (omit this block if "None") |
 | 文件 | Plan / Review 两个路径 |
 
 Question: "是否批准该计划？" Options: `批准（归档并物化）` / `拒绝（说明修改方向）` / `中止`。
 
 - **approve** → Phase 6。
-- **reject**：Read status.json first。`reject_count += 1` 并写盘：
-  - `reject_count < 3`：置 `status: "revising"`（写穿），按用户反馈做一次定向修订（Phase 3 模板 + feedback appendix，无模型评审），拼接覆盖写盘，置回 `status: "pending_approval"` 后重新组装审批面。
-  - `reject_count >= 3`：**建议契约重放**（软建议，非硬闸）：AskUserQuestion — 契约重放 / 再修订一次 / 中止。再修订一次与 <3 路径同一状态纪律（revising → pending_approval，写穿）。用户亦可任意时刻主动发起重放。
-- **契约重放**（回边 Phase 5 → Phase 2）：同一 `{plan_file}` 原地覆盖 — dispatcher 重新走 Phase 2（起草新契约头 + 用户确认 + Write 覆盖），旧正文整体作废删除（它映射的是旧契约），status → `designing`，`reject_count` 与 `retry_counts` 归零，随后全新 Phase 3。`<review_file>` 无需删除 — 下一次全量评审会覆盖写。
-- **中止** → status `aborted`，停止。
+- **reject**: Read status.json first. Increment `reject_count` and persist it:
+  - `reject_count < 3`: set `status: "revising"` (write-through), ONE targeted revision from the user's feedback (Phase 3 template + feedback appendix, no model review), concatenate and overwrite the plan file, set `status: "pending_approval"`, then reassemble the approval surface.
+  - `reject_count >= 3`: **suggest contract replay** (a soft suggestion, not a hard gate): AskUserQuestion — `契约重放` / `再修订一次` / `中止`. `再修订一次` follows the same status discipline as the <3 path (revising → pending_approval, write-through). The user may also initiate a replay at any time.
+- **contract replay** (back-edge Phase 5 → Phase 2): overwrite the same `{plan_file}` in place — the dispatcher re-runs Phase 2 (draft a new contract header + user confirmation + Write overwrite); the old body is voided and deleted wholesale (it mapped the old contract); status → `designing`; `reject_count` and `retry_counts` reset to zero; then a brand-new Phase 3. `<review_file>` needs no deletion — the next full review overwrites it.
+- **`中止`** → status `aborted`, stop.
 
 ### Phase 6: Archive + Materialize
 
@@ -633,11 +639,11 @@ Question: "是否批准该计划？" Options: `批准（归档并物化）` / `�
 
 3. Commit the archived plan. With the `accepted-with-fail` suffix when applicable:
    ```bash
-   cd ${PROJECT_DIR} && git add docs/ghs/plans/${plan_file} && git commit -m "docs(plan): add technical plan - ${plan_file}"
+   cd ${PROJECT_DIR} && git add docs/ghs/plans/${plan_file} && git commit -m "docs(plan): 新增技术方案 - ${plan_file}"
    ```
-   (`ACCEPTED_WITH_FAIL == true` 时消息追加后缀 `[accepted-with-fail; S=<X> M=<Y>]`。)
+   (If `ACCEPTED_WITH_FAIL == true`, append the suffix `[accepted-with-fail; S=<X> M=<Y>]` to the message.)
 
-4. **Materialize the task tail** (plan 闭环 — 主链就此收敛为 plan → code):
+4. **Materialize the task tail** (plan loop closed — the main chain converges to plan → code):
    ```bash
    command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/tasks_to_features.py \
      --project-dir <PROJECT_DIR> \
@@ -647,7 +653,7 @@ Question: "是否批准该计划？" Options: `批准（归档并物化）` / `�
 
    - **`parsed`**: features written. Report plan id and feature ids to the user.
    - **`no_task_zone`**: the plan has no task tail. Tell the user materialization was skipped and suggest `/ghs:to-features` to break the plan down by LLM instead.
-   - **`malformed`**: **定点重写任务节** — 物化失败发生在审批归档之后，禁止全量重新生成（会静默作废已通过的评审）。Re-dispatch the designer (same Phase 3 dispatch, subagent_type Plan) with the FULL current plan file inlined as FROZEN plus this appendix appended:
+   - **`malformed`**: **targeted task-tail rewrite** — materialization failed AFTER approval and archive; regenerating the whole plan is forbidden (it would silently void the passed review). Re-dispatch the designer (same Phase 3 dispatch, subagent_type Plan) with the FULL current plan file inlined as FROZEN plus this appendix appended:
 
      ```
      ## IMPORTANT: Targeted Task-Tail Rewrite
@@ -660,7 +666,7 @@ Question: "是否批准该计划？" Options: `批准（归档并物化）` / `�
      `## Current State`.
      ```
 
-     On success, concatenate 契约头 + 新正文 and overwrite `${PROJECT_DIR}/.ghs/plans/${plan_file}` AND `docs/ghs/plans/${plan_file}` (both copies), then re-run the materializer command above. Still `malformed` after one targeted rewrite → AskUserQuestion with two options: 跳过物化（用户稍后走 `/ghs:to-features`）/ 再修一次任务节（重复本分支，仅限一次）。
+     On success, concatenate the contract header + new body and overwrite `${PROJECT_DIR}/.ghs/plans/${plan_file}` AND `docs/ghs/plans/${plan_file}` (both copies), then re-run the materializer command above. Still `malformed` after one targeted rewrite → AskUserQuestion with two options: `跳过物化` (the user later runs `/ghs:to-features`) / `再修一次任务节` (repeat this branch, once only).
 
 5. Update status to `approved` (and write `"accepted_with_fail": true` if applicable). Report the archived plan path, feature count, and close with: suggest `/ghs:code` to start implementing the first feature.
 
