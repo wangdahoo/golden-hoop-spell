@@ -1,6 +1,6 @@
 {
   "name": "golden-hoop-spell",
-  "description": "Marketplace for the golden-hoop-spell plugin — a skill suite for iterative planning, structured sprints, and disciplined code delivery with Claude Code",
+  "description": "A skill suite for iterative planning, feature breakdown, and disciplined code delivery with Claude Code",
   "owner": {
     "name": "wangdahoo"
   },
@@ -8,7 +8,7 @@
     {
       "name": "golden-hoop-spell",
       "source": "./plugin",
-      "description": "A Claude Code plugin for sprint-driven project management and code generation"
+      "description": "A Claude Code plugin for plan-driven project management and disciplined code delivery with Claude Code"
     }
   ]
 }
