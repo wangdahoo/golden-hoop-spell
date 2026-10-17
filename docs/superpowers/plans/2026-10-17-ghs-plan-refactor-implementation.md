@@ -1127,7 +1127,7 @@ if __name__ == "__main__":
 command python3 plugin/shared/scripts/test_tasks_to_features.py 2>&1 | tail -3
 ```
 
-Expected: `OK`（11 个用例全过）。若有失败：先修脚本（测试为规格），不得改测试迁就实现。
+Expected: `OK`（10 个用例全过）。若有失败：先修脚本（测试为规格），不得改测试迁就实现。
 
 - [ ] **Step 5: parser 增 Unwarranted 计数（先加测试）**
 
@@ -1275,7 +1275,7 @@ command python3 plugin/shared/scripts/test_tasks_to_features.py 2>&1 | tail -1
 command python3 plugin/shared/scripts/test_parse_delimited_output.py 2>&1 | tail -1
 ```
 
-Expected 依次：`≥3`、`≥1`、退出码 0、`OK`、`OK`。
+Expected 依次：`≥2`（裁定：Phase 6 替换文本含 1 处 + 正文既有 1 处；第 3 处随 T5 轻档支路落地自然达到）、`≥1`、退出码 0、`OK`、`OK`。
 
 - [ ] **Step 10: Commit**
 
