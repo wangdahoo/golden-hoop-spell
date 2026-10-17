@@ -153,10 +153,11 @@ FEATURE_ID_PATTERN = re.compile(r"^p\d{1,4}-feat-\d{3}$")
 - [ ] **Step 3: 残留扫描归零验证**
 
 ```bash
-grep -ri sprint plugin/ README.md README-zh.md | wc -l
+grep -ri sprint plugin/ README.md README-zh.md | grep -v "^plugin/shared/scripts/validate_structure.py" | wc -l
+grep -c "sprint" plugin/shared/scripts/validate_structure.py
 ```
 
-Expected: `0`。若有残留，逐条处理后再进下一步（历史 docs/ 目录不在本闸门内，勿动）。
+Expected: 第一条 `0`（历史 docs/ 目录不在本闸门内，勿动）；第二条 `2` — 唯一登记例外：validate_structure.py 旧格式检测块的字面量 `"sprints"`（检测旧键必须字面写出；Step 2d 强制逐字使用，与归零门互斥，裁定保留检测块）。若第一条非零，逐条处理后再进下一步。
 
 - [ ] **Step 4: 语法与功能冒烟**
 
@@ -1724,14 +1725,15 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 - [ ] **Step 1: 全量静态闸门**
 
 ```bash
-grep -ri sprint plugin/ README.md README-zh.md | wc -l
+grep -ri sprint plugin/ README.md README-zh.md | grep -v "^plugin/shared/scripts/validate_structure.py" | wc -l
+grep -c "sprint" plugin/shared/scripts/validate_structure.py
 grep -c "haiku" plugin/skills/ghs-plan/SKILL.md
 grep -rn "max_rounds\|MAX_BREACHES\|max_rounds_breaches" plugin/ | wc -l
 grep -c "SCOPE CONTRACT" plugin/skills/ghs-plan/SKILL.md
 command python3 -m py_compile plugin/shared/scripts/*.py
 ```
 
-Expected 依次：`0`、`0`、`0`、`≥1`、全部编译通过。任何非零/失败 → 定点修复后重跑本步。
+Expected 依次：`0`、`2`（登记例外：validate_structure.py 旧格式检测块字面量，见 Task 1 Step 3 裁定）、`0`、`0`、`≥1`、全部编译通过。任何非零/失败 → 定点修复后重跑本步。
 
 - [ ] **Step 2: 全量测试回归**
 
