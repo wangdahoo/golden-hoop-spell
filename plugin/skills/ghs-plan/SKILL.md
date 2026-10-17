@@ -96,6 +96,12 @@ Two cap counters live on disk: reject_count (Phase 5 rejections, >=3 triggers th
 
 Contract freeze is not a state-machine state — the plan document itself is the truth.
 
+State discipline: (1) write-through — status and files change in the same turn;
+(2) read-before-branch at the remaining branch points (Phase 4 verdict branch, Phase 5
+reject branch, Phase 6 materialize-failure branch); (3) cap counters live on disk
+(reject_count / final_fix_pending / retry_counts) and are never recomputed from memory;
+(4) the plan document itself is the contract-freeze truth — no state-machine entry for it.
+
 ### Issue Severity Levels (Reviewer Must Use)
 
 | Level | Definition | Examples |
@@ -121,14 +127,41 @@ Pass criteria: zero Unwarranted, zero Severe, zero Medium issues.
 
 2. **Confirm requirement**: If the user has not provided a requirement description, use AskUserQuestion to ask: "Please describe the requirement you need a technical plan for." Ask only one question at a time.
 
-3. **Create working directory** (creates both the main directory and the `.tmp/` scratch subdirectory in one shot, so Handling step 2's Write to `.tmp/<x>.raw` never hits "No such file or directory"):
+3. **Entry triage** — classify the requirement into one lane (heuristics, not hard
+   thresholds), write `lane` into the status file, and route:
+
+   | Lane | Signals | Route | Interaction |
+   |---|---|---|---|
+   | Self-sufficient | Names exact files and the exact change; no design space | Advise doing it directly and exit (plain text — no AskUserQuestion) | One sentence |
+   | Light | Single subsystem; ≤ ~3 files; no new interface/schema; no architectural decision; short description | Light lane L below — skip Phase 1/3/4 entirely (zero subagents); dispatcher may read a few files directly to pin exact paths | 1 round |
+   | Full | Everything else | Continue to Phase 1 | In-flow |
+
+   **Downgrade-tell, upgrade-default**: moving DOWN to light/self-sufficient must be
+   stated to the user (they can upgrade at any time); moving UP to full never asks —
+   zero forced interaction rounds.
+
+4. **Create working directory** (creates both the main directory and the `.tmp/` scratch subdirectory in one shot, so Handling step 2's Write to `.tmp/<x>.raw` never hits "No such file or directory"):
    ```bash
    mkdir -p ${PROJECT_DIR}/.ghs/plans ${PROJECT_DIR}/.ghs/plans/.tmp
    ```
 
-4. **Generate file identifier**: Create `{date}-{slug}` based on current date and the requirement topic.
+5. **Generate file identifier**: Create `{date}-{slug}` based on current date and the requirement topic.
 
-5. **Initialize status file**: Write the status JSON exactly per the schema in State Tracking, with "status": "designing" and "lane": "full".
+6. **Initialize status file**: Write the status JSON per the schema, "status": "designing", "lane": "<light | full>"（自足出口不写文件，直接退出）.
+
+### Light Lane L (zero subagents, merges at Phase 6)
+
+1. **Dispatcher drafts the contract header** (Phase 2 template, six pieces + Global
+   Constraints) and **ONE task card** (Phase 3 task-card serialization format) directly —
+   reading a handful of project files to pin exact paths is allowed.
+2. **Write** `{plan_file}` = 契约头 + 任务卡. Set `pending_approval`.
+3. **Single merged round**: ONE AskUserQuestion showing 契约头 + 任务卡 —
+   "确认物化 / 调整后物化 / 升完整档"：
+   - 确认物化 → Phase 6（共用 `tasks_to_features.py`）。
+   - 调整后物化 → dispatcher 原地修改后再问一次（仅一次），然后 Phase 6。
+   - 升完整档 → `lane: "full"`，回 Phase 1（已写的 `{plan_file}` 作为契约头起点保留）。
+4. Reviewers do not run on this lane; the merged round IS the gate. Full-lane runs keep
+   review Step 1 contract mapping as the backstop for anything mis-triaged as light.
 
 ### Phase 1: Context Snapshot Extraction
 
@@ -327,7 +360,7 @@ only the frozen header.
    decisions made so far (mark anything not user-ratified with `[DISCRETIONARY]`), open
    space (explicitly left to the implementer), plus the `Global Constraints` section
    (one item per line, exact values verbatim — formats, compatibility promises, naming
-   rules, ports; no prose).
+   rules, ports; no prose). For oversized same-domain needs, slice milestones via the contract's Non-Goals across multiple plan runs (each run gets its own frozen contract); for needs spanning independent subsystems the Phase 3 SPLIT_SUGGESTED gate applies. Safe zone: a single plan stays under ~800 lines.
 2. **Confirm with the user** via AskUserQuestion — ONE question showing the full draft:
    "以上是本次计划的范围契约，有无需要修正的地方？" Options: "确认冻结" / "需要修正"。
    If the user requests corrections, revise in place and re-confirm (still the same
@@ -643,7 +676,7 @@ Question: "是否批准该计划？" Options: `批准（归档并物化）` / `�
    - The plan reviewer cannot communicate directly with the user; all questions are relayed through the dispatcher
    - The plan designer and reviewer do not interact directly; information is exchanged indirectly through files
 
-4. **Files as the sole communication medium**: All information between the three roles is transmitted through files. The dispatcher coordinates via the status file and completion signals from agent outputs.
+4. **Files as the sole communication medium**: All information between the three roles is transmitted through files. The dispatcher coordinates via the status file and completion signals from agent outputs. Files are the single source of the dispatcher's own state: at every branch point, Read status.json first and branch only on the values just read; write a status change in the same turn as the file write it describes (write-through). No deriving dispatcher state from conversation memory.
 
 5. **Reviews must be severity-graded**: Every issue from the reviewer must have a severity label (Unwarranted/Severe/Medium/Optimization). Reviews without severity labels are invalid.
 
