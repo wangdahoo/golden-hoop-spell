@@ -1752,13 +1752,13 @@ Expected: 三个 `OK`。
 - [ ] **Step 3: 跨文件一致性抽查**
 
 ```bash
-grep -n "## Feature Planning" plugin/shared/assets/progress.md plugin/skills/ghs-to-features/SKILL.md plugin/shared/scripts/tasks_to_features.py
-grep -n "plans\[\]" plugin/skills/ghs-to-features/SKILL.md plugin/shared/references/features-agent.md
+grep -n "## Feature Planning" plugin/skills/ghs-to-features/SKILL.md plugin/shared/scripts/tasks_to_features.py
+grep -rn '"plans"' plugin/shared/assets/features.json plugin/shared/scripts/validate_structure.py plugin/shared/scripts/status.py plugin/shared/scripts/parallel_utils.py plugin/shared/scripts/archive_plans.py plugin/shared/references/features-agent.md
 grep -n "plan_ref" plugin/skills/ghs-code/SKILL.md plugin/shared/scripts/tasks_to_features.py
 grep -n "REVIEW COMPLETE | Verdict: PASS|FAIL | Unwarranted" plugin/skills/ghs-plan/SKILL.md plugin/shared/references/plan-reviewer.md
 ```
 
-Expected: 四处 grep 各自非空且措辞一致（progress 标题三处同串；`plans[]` 两处；`plan_ref` 读写两端在；signal 行两处同格式）。`plan_ref` 在 ghs-code 的读取协议（P7 非目标）应与重构前语义一致 — `git diff main...HEAD -- plugin/skills/ghs-code/SKILL.md` 仅含术语置换，逐段确认。
+Expected: 四处 grep 各自非空且措辞一致（progress 标题两处写入端同串——模板标题在 ghs-to-features/SKILL.md 与 tasks_to_features.py，assets/progress.md 本无此标题；schema 键 `"plans"` 六处同键；`plan_ref` 读写两端在；signal 行两处同格式）。`plan_ref` 在 ghs-code 的读取协议（P7 非目标）应与重构前语义一致 — `git diff main...HEAD -- plugin/skills/ghs-code/SKILL.md` 仅含术语置换，逐段确认。
 
 - [ ] **Step 4: 反目标清单核对（逐条人检，不落盘）**
 
