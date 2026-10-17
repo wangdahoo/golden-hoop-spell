@@ -1607,6 +1607,7 @@ Question: "是否批准该计划？" Options: `批准（归档并物化）` / `�
 grep -c "MAX_BREACHES\|max_rounds_breaches\|max_rounds" plugin/skills/ghs-plan/SKILL.md
 grep -c '"rejected"' plugin/skills/ghs-plan/SKILL.md
 grep -n "Key Constraints #2" plugin/skills/ghs-plan/SKILL.md | wc -l
+grep -c "QUESTION" plugin/skills/ghs-plan/SKILL.md
 grep -c "QUESTION:" plugin/skills/ghs-plan/SKILL.md
 grep -c "Unwarranted" plugin/shared/references/plan-reviewer.md
 grep -c "Builder Questions" plugin/skills/ghs-plan/SKILL.md
@@ -1616,7 +1617,7 @@ grep -n "QUESTION" plugin/shared/references/plan-reviewer.md | wc -l
 command python3 plugin/shared/scripts/test_parse_delimited_output.py 2>&1 | tail -1
 ```
 
-Expected 依次：`0`、`0`、`0`（携带文本中对已删 Key Constraints #2 的悬挂引用随 T4 替换清零）、`1`（仅 designer 模板的 retired 说明行）、`≥6`、`≥2`、`≥2`、`≥2`、`1`（仅 "retired" 说明行）、`OK`。
+Expected 依次：`0`、`0`、`0`（携带文本中对已删 Key Constraints #2 的悬挂引用随 T4 替换清零）、`2`（裁定：designer 与 reviewer 两模板各一条无冒号 retired 说明行——原期望"清至 1"漏计 reviewer 模板自身的 retired 行）、`0`（带冒号的 `QUESTION:` 信号字面量归零）、`≥6`、`≥2`、`≥2`、`≥2`、`1`（仅 "retired" 说明行）、`OK`。
 
 - [ ] **Step 6: Commit**
 
