@@ -223,13 +223,14 @@ Phase 5 reject（用户主动）→ 定向修订（无模型评审）→ 回审�
 - status.json：删 `max_rounds` / `max_rounds_breaches` / `round` / `rejected` 枚举；状态集 = `designing | reviewing | revising | pending_approval | approved | aborted`（7→6）；`accepted_with_fail` 保留，语义收窄为"复审后仍有残留且用户显式接受"；
 - **审批面 = 契约头 + 任务清单 + 评审残留 + calls-you-made/Assumptions**（现状 34 行摘要组装逻辑整体删除——契约头是 dispatcher 自己写的，组装成本 ≈ 0）。
 
-**status.json 一期 schema**：
+**status.json schema**：
 
 ```json
 {
   "plan_file": "{date}-{slug}.md",
   "context_file": "{date}-{slug}-context.md",
   "status": "designing | reviewing | revising | pending_approval | approved | aborted",
+  "lane": "light | full",
   "retry_counts": {"plan": 0, "review": 0, "context_snapshot": 0},
   "reject_count": 0,
   "final_fix_pending": false,
@@ -240,7 +241,7 @@ Phase 5 reject（用户主动）→ 定向修订（无模型评审）→ 回审�
 }
 ```
 
-（`lane` 字段二期随 P5 分诊加入；契约冻结状态不进状态机——plan 文档本身即真相。两个封顶计数字段：**`reject_count`** = Phase 3 用户拒绝累计，≥3 → 建议契约重放（软建议非硬闸）；**`final_fix_pending`** = 定向复审留残留时置 true，置位期间仅允许一次定向修订且不再复审，进入 pending_approval 或 aborted 时清除——"硬边界 4 次"的落盘形态，跨重启不失位，是 P6"文件真相源"原则的必然推论。）
+（`lane: light | full` 随 Phase 0 入口分诊写入；契约冻结状态不进状态机——plan 文档本身即真相。两个封顶计数字段：**`reject_count`** = Phase 3 用户拒绝累计，≥3 → 建议契约重放（软建议非硬闸）；**`final_fix_pending`** = 定向复审留残留时置 true，置位期间仅允许一次定向修订且不再复审，进入 pending_approval 或 aborted 时清除——"硬边界 4 次"的落盘形态，跨重启不失位，是 P6"文件真相源"原则的必然推论。）
 
 **评审报告骨架**（plan-reviewer.md 重写稿的输出结构）：
 
@@ -253,7 +254,7 @@ Phase 5 reject（用户主动）→ 定向修订（无模型评审）→ 回审�
 
 **买删**：多轮 revise 循环、breach/MAX_BREACHES、`rejected` 死枚举、max_rounds 协商、修订日志、12 项 checklist、Plan Summary 节、Phase 2/3 分支树 ~70%。
 
-### P4 builder-check 合并进评审席（第④步，随一期落地）
+### P4 builder-check 合并进评审席（评审第④步）
 
 - **准入唯一**："实现者不得不猜、且猜错代价大"——能从契约推出的不算，猜错无所谓的不算；
 - **三堆**：契约已答（引契约原文，指出正文未吸收）/ 模型可裁（自行定夺 + Assumptions 标记）/ 只有用户能答（重要性排序交 dispatcher）；
@@ -263,7 +264,7 @@ Phase 5 reject（用户主动）→ 定向修订（无模型评审）→ 回审�
 - **Assumptions 格式**：每条 = `[ASSUMPTION]` 标记 + 决定 + 一行理由；
 - **QUESTION 双通道退役**：designer QUESTION 信号（SKILL.md :391/:399）、reviewer QUESTION（:513/:520）、"one question at a time" 全局约束（:667 → 改为"单轮封顶、批式提问"）；designer 改**裁量文化**（能定则定 + Assumptions 标记 + 高代价猜测必须显式标记）。
 
-### P5 入口分诊 + 分解闸门（二期）
+### P5 入口分诊 + 分解闸门
 
 | 档 | 判据信号（启发式，非硬阈值） | 路径 | 交互 |
 |---|---|---|---|
@@ -276,7 +277,7 @@ Phase 5 reject（用户主动）→ 定向修订（无模型评审）→ 回审�
 - **第二道闸门**：designer 发现方案横跨多个无共享契约的独立子系统 → 输出 `SPLIT_SUGGESTED: {理由 + 建议子 plan 划分}` → 用户裁决：拆分（当前 plan 转 aborted + 记录建议）/ 合并（附理由重派 designer）；评审①步契约映射兜住漏网者；
 - 状态机零新增状态。
 
-### P6 机制收尾（随 P3 同稿，二期余项）
+### P6 机制收尾（随 P3 同稿落地）
 
 - **轻量状态纪律 ~5 行**（不立协议名目）：写穿（状态变更与文件写入同轮完成）；剩余 ~3 个分支点"分支前 Read status.json、只以刚读到的值分支"；Key Constraints #4 追加"文件是 dispatcher 自身状态的唯一真相源"；
 - status.json 增 `"retry_counts": {"plan": 0, "review": 0, "context_snapshot": 0}`（持久化，成功解析归零——修跨重启 MAX_RETRY 失效的真缺陷）；
@@ -289,19 +290,19 @@ Phase 5 reject（用户主动）→ 定向修订（无模型评审）→ 回审�
 - 设计草图（存档用）：SDD task-reviewer 纪律（diff-based、实现者报告 = 未验证声称、Missing/Extra/Misunderstood + 严重度）+ plan-mandated 上报人裁决；
 - **ghs:code 零改动**（连上报规则也不加）。
 
-## 6. 一期交付物（文件级）
+## 6. 交付物清单（文件级）
 
 | 文件 | 动作 |
 |---|---|
-| `plugin/skills/ghs-plan/SKILL.md` | 重写，**全新 Phase 编号 0-6**：0 初始化（[二期] 分诊）、1 上下文快照（去 haiku 指定）、2 契约冻结、3 设计（新 prompt 模板 + 契约内联）、4 评审（四步协议 + 内部定向修订/复审循环）、5 审批（新审批面 + reject 契约重放建议）、6 归档+物化；状态机清理（7→6、删 breach 机器）；Format Recovery 收窄（删 MAX_BREACHES、增 retry_counts）；QUESTION 机制退役 |
+| `plugin/skills/ghs-plan/SKILL.md` | 重写，**全新 Phase 编号 0-6**：0 初始化 + 入口分诊（三档路由 + 轻档支路）、1 上下文快照（去 haiku 指定）、2 契约冻结、3 设计（新 prompt 模板 + 契约内联）、4 评审（四步协议 + 内部定向修订/复审循环）、5 审批（新审批面 + reject 契约重放建议）、6 归档+物化；状态机清理（7→6、删 breach 机器）；Format Recovery 收窄（删 MAX_BREACHES、增 retry_counts）；QUESTION 机制退役 |
 | `plugin/shared/references/plan-designer.md` | 全面重写：P1 纪律 + 契约头/设计体模板 + P2 任务卡格式 + Assumptions 格式 + 裁量文化 |
 | `plugin/shared/references/plan-reviewer.md` | 全面重写：冷读 + 四步协议（含④ builder questions）+ Unwarranted 判例 + 定向复审模板 + 需求复述 + 三堆报告格式 |
 | `plugin/shared/scripts/tasks_to_features.py` + `test_tasks_to_features.py` | 新增 |
 | `plugin/shared/scripts/parse_delimited_output.py` + 测试 | signal 行 Unwarranted 计数小改 |
-| P2.5 的 ~16 文件 | 机械置换（独立 commit，可与一期同期） |
+| P2.5 的 ~16 文件 | 机械置换（独立 commit） |
 | 根 `CLAUDE.md` | 架构段管线描述（plan → code 主链、to-features 入口）+ Conventions 的 feature ID 格式 + 三角色描述更新 |
 
-二期（P5 分诊、P6 状态纪律余项）与 P7 预案不在本表。
+P7 预案不在本表（见 §5 P7）。
 
 ## 7. 实现规格裁定记录（2026-10-17，用户授权裁定）
 
@@ -313,7 +314,7 @@ Phase 5 reject（用户主动）→ 定向修订（无模型评审）→ 回审�
 | 任务卡 status | 任务卡无 status 字段；执行状态属 features.json，物化后全部 `pending`（§5 P2） |
 | tasks_to_features.py CLI | `--project-dir` + `--plan-file`，stdout JSON 三态；category 路径启发式规则见 §5 P2 |
 | 锚点语法 | `{测试名或命令}: {判据}`；禁空判据；每任务 ≤5 条（§5 P2） |
-| status.json 一期 schema | 六状态 + retry_counts；无 lane 字段（二期随 P5 加）；契约冻结不进状态机（§5 P3） |
+| status.json schema | 六状态 + lane + retry_counts + 封顶计数（reject_count / final_fix_pending）；契约冻结不进状态机（§5 P3） |
 | 评审报告骨架 | 需求复述 / 契约映射表 / Findings / 锚点检查 / Contract Deficiency / signal 行（§5 P3） |
 | 轻档单轮 | 契约确认与任务卡审批合一（§5 P5） |
 | **封顶计数落盘**（builder Q1） | status.json 增 `reject_count` + `final_fix_pending`——落盘是"文件真相源"原则的必然，不做内存推导（§5 P3） |
@@ -323,8 +324,8 @@ Phase 5 reject（用户主动）→ 定向修订（无模型评审）→ 回审�
 | **契约重放机制**（builder Q5） | 原地覆盖新契约头、旧正文作废、status 回 designing、计数归零、全新 Phase 3（§5 P3） |
 | **README 纳入**（builder Q6） | `README.md` / `README-zh.md` 纳入 P2.5（§5 P2.5） |
 | **约束传播粒度**（builder Q7） | per-feature：每 feature 的 acceptance_criteria = 全量约束逐字 + 本任务锚点（§5 P2） |
-| P4 实施时点 | **随一期落地**（避免 reviewer.md 二次重写）——一期 = P0-P4 + P2.5，二期余 P5/P6 |
-| commit 拆分 | ① P2.5 正名独立 commit；② P0+P1（SKILL.md 设计侧 + designer.md）；③ P2（脚本 + Phase 4 + parser）；④ P3+P4（reviewer.md + 评审环 + 状态机） |
+| 实施范围 | **P0-P6 + P2.5 一次完成，不分期**（2026-10-17 裁决）；P7 预案除外 |
+| commit 拆分 | ① P2.5 正名独立 commit；② P0+P1（SKILL.md 设计侧 + designer.md）；③ P2（脚本 + Phase 6 + parser）；④ P3+P4（reviewer.md + 评审环 + 状态机）；⑤ P5+P6（分诊 + 状态纪律收尾） |
 | 标题语言 | 文档模板标题用英文固定词（与任务卡标签一致、解析器友好），内容遵循仓库语言政策用中文 |
 
 > builder check 的堆 2（模型可裁）各项——拼接覆盖语义、Unwarranted 独立计数不与 Severe 叠加、现状分析节映射到 intent 不判 Unwarranted、dependencies 按任务顺序成链、审批面软上限——已核对采纳；小勘误（assets 实际路径 `plugin/shared/assets/features.json`、置换位点计数口径）已修入正文。
@@ -348,9 +349,9 @@ Phase 5 reject（用户主动）→ 定向修订（无模型评审）→ 回审�
 
 > 本章是 §5 各项设计的**组装视图**：完整走一遍新流程的每一步——谁做什么、读写哪些文件、有哪些控制点——供整体确认机制用。
 
-![重构后 ghs:plan 完整流程图](assets/ghs-plan-refactor-flow.svg)
+![重构后 ghs:plan 完整流程图](assets/ghs-plan-refactor-flow-v2.svg)
 
-> 图例：实线 = 一期，虚线 = 二期；红虚线 = reject 回环与契约重放。图中节点与下表逐步对应，冲突时以表为准（表承载细节）。
+> 图例：红虚线 = reject 回环与契约重放。图中节点与下表逐步对应，冲突时以表为准（表承载细节）。
 
 ### 9.1 分步叙述
 
@@ -358,15 +359,15 @@ Phase 5 reject（用户主动）→ 定向修订（无模型评审）→ 回审�
 
 | # | 步骤 | 参与者 | 动作与控制点 | 读写的文件 |
 |---|---|---|---|---|
-| 0 | 初始化 [二期含分诊] | dispatcher | `resolve_project_dir.py` 定位项目；`mkdir -p .ghs/plans/.tmp`；生成 `{date}-{slug}` 标识；写初始状态。[二期] 入口分诊三档：自足 → 出口 X；轻档 → 支路 L；完整 → 继续 | 新建 `{id}-status.json`（`status: designing`） |
+| 0 | 初始化 + 入口分诊 | dispatcher | `resolve_project_dir.py` 定位项目；`mkdir -p .ghs/plans/.tmp`；生成 `{date}-{slug}` 标识；写初始状态。入口分诊三档：自足 → 出口 X；轻档 → 支路 L；完整 → 继续 | 新建 `{id}-status.json`（`status: designing`） |
 | 1 | 上下文快照 | Context 子代理 | 探测 codegraph → 派 general-purpose（codegraph 路径）或 Explore（grep 回退）产快照；输出经 `parse_delimited_output.py --kind context_snapshot` 提取；失败走 Format Recovery（`retry_counts.context_snapshot`） | 写 `{id}-context.md`；只读项目源码 |
 | 2 | 契约冻结 | dispatcher + 用户 | 汇总需求描述与澄清对话 → 起草契约六件套 → AskUserQuestion 轻确认（有修正则原地改后再确认，确认即冻结） | **`Write` 创建 `{id}.md` = 契约头**（含 Global Constraints 节） |
-| 3 | 设计 | Plan 子代理 + dispatcher | 派发 prompt：内联 FROZEN 契约全文 + context.md 指引 + 设计体/任务卡规格；子代理输出 `<<<PLAN_START>>>正文<<<PLAN_END>>>`；dispatcher 解析后以"契约头 + 正文"**拼接覆盖写**；[二期] 子代理可输出 `SPLIT_SUGGESTED` → 用户裁决拆分/合并 | 读 `{id}-context.md`；写 `{id}.md` |
+| 3 | 设计 | Plan 子代理 + dispatcher | 派发 prompt：内联 FROZEN 契约全文 + context.md 指引 + 设计体/任务卡规格；子代理输出 `<<<PLAN_START>>>正文<<<PLAN_END>>>`；dispatcher 解析后以"契约头 + 正文"**拼接覆盖写**；子代理可输出 `SPLIT_SUGGESTED` → 用户裁决拆分/合并 | 读 `{id}-context.md`；写 `{id}.md` |
 | 4 | 全量评审 + 内部修订循环 | reviewer / designer 重派 | 读 `{id}.md`（**头部即契约，先读**）+ context.md；四步协议：冷读猎题④ → 契约映射①（映射不上 = Unwarranted）→ 双向失败扫描② → 锚点完整性③；signal 行带 `Unwarranted: X` 计数。PASS → `pending_approval`；FAIL → `revising` → 单轮定向修订（findings 逐条处置：Unwarranted→删 / 欠决策→补 / 过决策→削；禁超界扩写）→ 定向复审（仅 verdict 上轮 findings + 检查修复章节）：无残留 → `pending_approval`；有残留 → `final_fix_pending: true` → 最后一次修订（无复审）→ `pending_approval`。**修订/复审是本 Phase 的内部循环**（状态机 reviewing↔revising） | 写 `{id}-review.md`；覆盖写 `{id}.md`（修订）；分支前读 `{id}-status.json` |
 | 5 | 审批 | 用户 | 审批面 = 契约头 + 任务清单 + 评审残留 + calls-you-made/Assumptions；approve → Phase 6；reject → `reject_count++`：＜3 按反馈定向修订回审批；≥3 → **建议契约重放**（Phase 5 → Phase 2 回边：同一 `{id}.md` 原地覆盖新契约头、旧正文作废、review 覆盖写、status 回 `designing`、`reject_count` 与 retry_counts 归零、全新 Phase 3；用户亦可主动发起） | `{id}-status.json` 状态迁移；重放时覆盖 `{id}.md`、`{id}-review.md` |
 | 6 | 归档 + 物化 | dispatcher + 脚本 | `cp {id}.md → docs/ghs/plans/` + git commit（accepted_with_fail 时消息带标记）→ `tasks_to_features.py` 解析任务尾 + 契约 Global Constraints → 写 features.json（plan 对象 + `p{N}-feat-{NNN}`）+ 追加 progress.md 条目 → `status: approved` → 结束语建议 `/ghs:code` | 写 `docs/ghs/plans/{id}.md`、`.ghs/features.json`、`.ghs/progress.md` |
-| L | [二期] 轻档支路 | dispatcher + 用户 | Phase 0 分诊判轻档 → 跳过 Phase 1/3/4，dispatcher 直出契约头 + 单任务卡 → 单轮合并审批（确认物化 / 调整后物化 / 升完整档）→ 汇入 Phase 6 | 同上；**零子代理** |
-| X | [二期] 自足出口 | dispatcher | Phase 0 分诊判自足 → 建议直接做，流程退出 | 无 |
+| L | 轻档支路 | dispatcher + 用户 | Phase 0 分诊判轻档 → 跳过 Phase 1/3/4，dispatcher 直出契约头 + 单任务卡 → 单轮合并审批（确认物化 / 调整后物化 / 升完整档）→ 汇入 Phase 6 | 同上；**零子代理** |
+| X | 自足出口 | dispatcher | Phase 0 分诊判自足 → 建议直接做，流程退出 | 无 |
 
 ### 9.2 状态机（6 态）
 
@@ -379,7 +380,7 @@ Phase 5 reject（用户主动）→ 定向修订（无模型评审）→ 回审�
 | pending_approval | 用户 approve | approved（终态） |
 | pending_approval | 用户 reject（`reject_count` ＜3） | revising |
 | pending_approval / 任意 | 契约重放 | designing（计数归零） |
-| 任意 | 用户中止；[二期] 拆分采纳 | aborted（终态） |
+| 任意 | 用户中止；拆分采纳 | aborted（终态） |
 
 ### 9.3 控制文件清单
 
@@ -406,6 +407,6 @@ Phase 5 reject（用户主动）→ 定向修订（无模型评审）→ 回审�
 
 - **下游**：`/ghs:code` 读 features.json 逐 feature 实现；`plan_ref` + technical_notes 的"参考 plan §X"回读协议不变；
 - **外来入口**：非 ghs:plan 产出的计划文档 / 裸需求 → `/ghs:to-features`（LLM 分解，行为不变）——ghs 去掉 plan 技能仍是完整可运转的执行半套件；
-- **产线汇合**：完整档与 [二期] 轻档在 Phase 4 汇合，共用 `tasks_to_features.py` 物化。
+- **产线汇合**：完整档与轻档在 Phase 6 汇合，共用 `tasks_to_features.py` 物化。
 
 仍留给实施期的只剩**写作**而非设计：全部提示词的具体文案、契约头/任务卡的正反例示教、判据表例证选择——实施时直接写，无需再裁决。
