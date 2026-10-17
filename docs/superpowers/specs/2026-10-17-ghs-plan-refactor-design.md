@@ -157,10 +157,11 @@
 - 触发：Phase 4 审批归档后由 dispatcher 自动调用；
 - **verbatim 字段逐字**：id（`p{N}-feat-{任务序号，零垫 3 位}`，N = features.json 现有最大 plan 号 + 1）、title、description（=Points）、acceptance_criteria（=锚点逐字，且该 plan 的 Global Constraints 逐字置首）、files_affected、technical_notes（=Interfaces + 指向设计体节的引用）；
 - **authored 字段确定性默认**：`status: "pending"`、priority=medium、estimated_complexity=medium、dependencies 按任务顺序（指向前序任务）；category 按 Files 路径启发式（路径含 `ui/`→ui、`api/`→api、`auth/`→auth、`data/`→data、`infra/`→infra，命中多个取首个，未命中 → core）；
-- plan 对象：`id: "p{N}"`、name（Intent 首句截断）、description（Goals 首条）、created_at、`status: "in_progress"`、plan_ref（归档路径）、features 数组；
+- **plan 对象 schema 定稿**：必填 `id`（`"p{N}"`）/ `name`（显示用短标签，脚本从 Intent 首句截断）/ `status: "in_progress"` / `plan_ref`（归档路径）/ `created_at` / `features`；**现行 sprint 对象的 `goal`/`description` 散文字段删除**——名称与目标经 `plan_ref` 读 plan 文档契约头，文档是唯一真相（此为 plan_ref 的买删）；
+- **约束传播粒度 = per-feature**：每个 feature 的 acceptance_criteria = [全量 Global Constraints 逐字] + [本任务锚点]——并行 code 子代理各自单读 feature 即得完整约束；
 - **任务卡无 status 字段**——执行状态属 features.json，物化后全部 `pending`，plan 侧不追踪执行进度；
 - 脚本追加一条最小 progress.md planning 条目（plan id、feature 数、来源 plan 文件）；
-- 解析结果三态路由：`parsed(N)` → 写入；`no task zone` → 提示走 to-features；`malformed` → 格式恢复重派 designer 一次，仍失败问用户（跳过物化走 to-features / 修任务节）；
+- 解析结果三态路由：`parsed(N)` → 写入；`no task zone` → 提示走 to-features；`malformed` → **定点重写任务节**（重派 designer：只重写任务尾使其符合序列化格式，契约头与设计体冻结不得改动；dispatcher 以"契约头 + 设计体 + 新任务尾"拼接覆盖写盘），仍失败问用户（跳过物化走 to-features / 修任务节）——物化失败发生在审批归档**之后**，禁止全量重新生成（会静默作废已通过的评审）；
 - **锚点语法细则**：`- Anchors:` 下每条一行 `- {主体}: {判据}`；测试锚点用测试函数名（`test_refresh_rejects_expired: 过期 token 返回 401 且不落库`），命令锚点用可执行命令（`npm test -- --filter session: 无失败`）；**禁止空判据**（"works correctly" / "测试通过"）；每任务锚点 ≤5 条（超出 = 该拆任务的信号）。
 
 - **主链 = plan → code**；`/ghs:plan` 结束语建议 `/ghs:code`；
@@ -172,17 +173,19 @@
 
 - 技能：`ghs:sprint` → `ghs:to-features`（目录 `ghs-sprint/` → `ghs-to-features/`）；描述重写（English，LLM-facing）："Turn a plan document or raw requirements into atomic, implementable features in `.ghs/features.json`. Also use to modify existing plans — add features, change priorities, or replan."；
 - schema：`sprints[]` → `plans[]`；ID `s{N}-feat-{NNN}` → `p{N}-feat-{NNN}`；正则 `^p\d{1,4}$` / `^p\d{1,4}-feat-\d{3}$` + 前缀一致性校验；feature 级字段不变；
-- 落点 ~16 文件 / ~88 处（全机械）：
+- 落点 ~18 文件（含根 `README.md` / `README-zh.md`）；大小写不敏感的 "sprint" 在 `plugin/` 下实测 400+ 处（builder check 勘正：原估 ~88 仅计文档术语，实际含 Python 函数/变量名如 `get_completed_sprints`）——**验收标准 = `grep -ri sprint plugin/ README*.md` 归零**（内部标识符一并置换，不豁免）：
 
 | 组 | 文件 |
 |---|---|
 | 技能本体 | `ghs-to-features/`（目录改名 + frontmatter + SKILL.md 16 处） |
-| 资产 | `plugin/assets/features.json` 模板 |
+| 资产 | `plugin/shared/assets/features.json` 模板 |
 | 脚本 | `validate_structure.py`（报错加 "old format detected — re-run /ghs:init" 提示）、`status.py`、`parallel_utils.py`（路径 `<plan_id>`）、`archive_sprint.py` → `archive_plans.py` |
 | 下游技能 | `ghs-code`（14 处）、`ghs-archive`（11）、`ghs-force-archive`（10）、`ghs-status`（4）、`ghs-init`（2）、`ghs-plan`（1，兜底建议语 → `/ghs:to-features`） |
 | references | `sprint-agent.md` → `features-agent.md`、`coding-agent.md`、`examples.md` |
 | 根 | `CLAUDE.md`（架构段管线描述 + Conventions 的 feature ID 格式） |
 
+- **写入面与接口面同步换**：归档 JSON 键 `archived_sprint` → `archived_plan`、归档目录 `{plan_id}_{name}_{timestamp}`、并行 raw 路径 `.ghs/parallel/<plan_id>/`、`parallel_utils.py` 的 `--sprint-id` → `--plan-id`、progress.md 模板标题 `## Sprint Planning` → `## Feature Planning`（`archive_plans.py` 的会话匹配逻辑同步改，否则归档提取失效）；
+- **归档产物格式变化属正名的一部分**：无向下兼容，旧 `.ghs/archived/` 内容不迁移（re-init 边界内）；
 - 措辞注意：archive / status 文档中写"归档已完成 plan 的 **feature 组**"，避免读成归档 plan 文档；
 - **行为零变更**；老项目 re-init。
 
@@ -212,7 +215,8 @@ Phase 3 reject（用户主动）→ 定向修订（无模型评审）→ 回审�
 ```
 
 - **定向修订**：findings 逐条处置（Unwarranted→删 / 欠决策→补 / 过决策→削），禁止 findings 之外扩写；
-- **定向复审**：仅 verdict 上轮 findings（ADDRESSED / NOT ADDRESSED）+ 检查修复章节新破绽，非全量重评；"Attempted ≠ addressed"；
+- **定向复审**：仅 verdict 上轮 findings（ADDRESSED / NOT ADDRESSED）+ 检查修复章节新破绽，非全量重评；"Attempted ≠ addressed"；复审复用同一 signal 行格式与同一 `-review.md`（覆盖写），"评审残留"取自最新 review 文件；
+- **契约重放机制**（连续 ≥3 reject 或用户主动发起）：同一 `{plan_file}` 原地覆盖——dispatcher 写新契约头，旧正文整体作废删除（它映射的是旧契约）；`-review.md` 覆盖写；status 回 `designing`，`reject_count` 与 retry_counts 归零，全新 Phase 1；重放后走正常 Phase 0.6 确认轮；
 - signal 行加 Unwarranted 计数：`REVIEW COMPLETE | Verdict: PASS|FAIL | Unwarranted: X Severe: Y Medium: Z Optimization: W`（`parse_delimited_output.py` + 测试小改）；
 - status.json：删 `max_rounds` / `max_rounds_breaches` / `round` / `rejected` 枚举；状态集 = `designing | reviewing | revising | pending_approval | approved | aborted`（7→6）；`accepted_with_fail` 保留，语义收窄为"复审后仍有残留且用户显式接受"；
 - **审批面 = 契约头 + 任务清单 + 评审残留 + calls-you-made/Assumptions**（现状 34 行摘要组装逻辑整体删除——契约头是 dispatcher 自己写的，组装成本 ≈ 0）。
@@ -225,6 +229,8 @@ Phase 3 reject（用户主动）→ 定向修订（无模型评审）→ 回审�
   "context_file": "{date}-{slug}-context.md",
   "status": "designing | reviewing | revising | pending_approval | approved | aborted",
   "retry_counts": {"plan": 0, "review": 0, "context_snapshot": 0},
+  "reject_count": 0,
+  "final_fix_pending": false,
   "accepted_with_fail": false,
   "keep_raw_on_success": false,
   "created_at": "YYYY-MM-DDTHH:mm:ss",
@@ -232,7 +238,7 @@ Phase 3 reject（用户主动）→ 定向修订（无模型评审）→ 回审�
 }
 ```
 
-（`lane` 字段二期随 P5 分诊加入；契约冻结状态不进状态机——plan 文档本身即真相。）
+（`lane` 字段二期随 P5 分诊加入；契约冻结状态不进状态机——plan 文档本身即真相。两个封顶计数字段：**`reject_count`** = Phase 3 用户拒绝累计，≥3 → 建议契约重放（软建议非硬闸）；**`final_fix_pending`** = 定向复审留残留时置 true，置位期间仅允许一次定向修订且不再复审，进入 pending_approval 或 aborted 时清除——"硬边界 4 次"的落盘形态，跨重启不失位，是 P6"文件真相源"原则的必然推论。）
 
 **评审报告骨架**（plan-reviewer.md 重写稿的输出结构）：
 
@@ -308,9 +314,18 @@ Phase 3 reject（用户主动）→ 定向修订（无模型评审）→ 回审�
 | status.json 一期 schema | 六状态 + retry_counts；无 lane 字段（二期随 P5 加）；契约冻结不进状态机（§5 P3） |
 | 评审报告骨架 | 需求复述 / 契约映射表 / Findings / 锚点检查 / Contract Deficiency / signal 行（§5 P3） |
 | 轻档单轮 | 契约确认与任务卡审批合一（§5 P5） |
+| **封顶计数落盘**（builder Q1） | status.json 增 `reject_count` + `final_fix_pending`——落盘是"文件真相源"原则的必然，不做内存推导（§5 P3） |
+| **物化失败重派语义**（builder Q2） | 定点重写任务节、契约头与设计体冻结；禁止全量重新生成（§5 P2） |
+| **plan 对象 schema**（builder Q3） | 必填 id/name/status/plan_ref/created_at/features；删 `goal`/`description` 散文字段（plan_ref 的买删）（§5 P2） |
+| **P2.5 扫除边界**（builder Q4） | 验收 = `grep -ri sprint plugin/ README*.md` 归零（400+ 处含代码标识符）；写入面/接口面/progress.md 标题同步换；归档格式变化随正名（§5 P2.5） |
+| **契约重放机制**（builder Q5） | 原地覆盖新契约头、旧正文作废、status 回 designing、计数归零、全新 Phase 1（§5 P3） |
+| **README 纳入**（builder Q6） | `README.md` / `README-zh.md` 纳入 P2.5（§5 P2.5） |
+| **约束传播粒度**（builder Q7） | per-feature：每 feature 的 acceptance_criteria = 全量约束逐字 + 本任务锚点（§5 P2） |
 | P4 实施时点 | **随一期落地**（避免 reviewer.md 二次重写）——一期 = P0-P4 + P2.5，二期余 P5/P6 |
 | commit 拆分 | ① P2.5 正名独立 commit；② P0+P1（SKILL.md 设计侧 + designer.md）；③ P2（脚本 + Phase 4 + parser）；④ P3+P4（reviewer.md + 评审环 + 状态机） |
 | 标题语言 | 文档模板标题用英文固定词（与任务卡标签一致、解析器友好），内容遵循仓库语言政策用中文 |
+
+> builder check 的堆 2（模型可裁）各项——拼接覆盖语义、Unwarranted 独立计数不与 Severe 叠加、现状分析节映射到 intent 不判 Unwarranted、dependencies 按任务顺序成链、审批面软上限——已核对采纳；小勘误（assets 实际路径 `plugin/shared/assets/features.json`、置换位点计数口径）已修入正文。
 
 仍留给实施期的只剩**写作**而非设计：全部提示词的具体文案、契约头/任务卡的正反例示教、判据表例证选择——实施时直接写，无需再裁决。
 
