@@ -56,7 +56,7 @@
 
 - **模型档位：不设**（2026-10-17 裁决）——全链子代理（designer / reviewer / 快照 / builder check）一律使用 coding agent 默认模型，包括移除现状 Phase 0.5 对快照子代理的 `haiku` 指定；
 - 仓库规范照旧：语言政策（LLM-facing 提示词英文、人读文档中文）、`command python3` 调用、conventional commits；
-- **反棘轮**：每个新增必须对应一笔删减（各项"买删"见 §5）；
+- **反棘轮**：每个新增必须对应一笔删减（各项"对应删减"见 §5）；
 - **无向下兼容**：schema 正名后老项目 re-init 即可。
 
 ## 5. 各项设计（已裁决）
@@ -100,7 +100,7 @@
 {一行一条，逐字精确值：格式、兼容性承诺、命名规范、端口等；无散文}
 ```
 
-**买删**：不新增独立 spec 产物；正文 Scope/Goals 重复表述退役。
+**对应删减**：不新增独立 spec 产物；正文 Scope/Goals 重复表述退役。
 
 ### P1 designer 全面重写
 
@@ -132,7 +132,7 @@
 {仅列出会改变决定的风险；缓解措施一行}
 ```
 
-**买删**："完整覆盖需求"完备性文化（现 plan-designer.md:5 角色句与 :108-114 "Collaborating with the Reviewer" 节）；per-step checkbox 剧本（:78-88）；Testing Strategy 节（:96-98）；修订日志节（:116-118）。
+**对应删减**："完整覆盖需求"完备性文化（现 plan-designer.md:5 角色句与 :108-114 "Collaborating with the Reviewer" 节）；per-step checkbox 剧本（:78-88）；Testing Strategy 节（:96-98）；修订日志节（:116-118）。
 
 ### P2 任务节 = features.json 直接物化（plan 闭环）
 
@@ -157,7 +157,7 @@
 - 触发：Phase 6 归档后由 dispatcher 自动调用；
 - **verbatim 字段逐字**：id（`p{N}-feat-{任务序号，零垫 3 位}`，N = features.json 现有最大 plan 号 + 1）、title、description（=Points）、acceptance_criteria（=锚点逐字，且该 plan 的 Global Constraints 逐字置首）、files_affected、technical_notes（=Interfaces + 指向设计体节的引用）；
 - **authored 字段确定性默认**：`status: "pending"`、priority=medium、estimated_complexity=medium、dependencies 按任务顺序（指向前序任务）；category 按 Files 路径启发式（路径含 `ui/`→ui、`api/`→api、`auth/`→auth、`data/`→data、`infra/`→infra，命中多个取首个，未命中 → core）；
-- **plan 对象 schema 定稿**：必填 `id`（`"p{N}"`）/ `name`（显示用短标签，脚本从 Intent 首句截断）/ `status: "in_progress"` / `plan_ref`（归档路径）/ `created_at` / `features`；**现行 sprint 对象的 `goal`/`description` 散文字段删除**——名称与目标经 `plan_ref` 读 plan 文档契约头，文档是唯一真相（此为 plan_ref 的买删）；
+- **plan 对象 schema 定稿**：必填 `id`（`"p{N}"`）/ `name`（显示用短标签，脚本从 Intent 首句截断）/ `status: "in_progress"` / `plan_ref`（归档路径）/ `created_at` / `features`；**现行 sprint 对象的 `goal`/`description` 散文字段删除**——名称与目标经 `plan_ref` 读 plan 文档契约头，文档是唯一真相（此为 plan_ref 的对应删减）；
 - **约束传播粒度 = per-feature**：每个 feature 的 acceptance_criteria = [全量 Global Constraints 逐字] + [本任务锚点]——并行 code 子代理各自单读 feature 即得完整约束；
 - **任务卡无 status 字段**——执行状态属 features.json，物化后全部 `pending`，plan 侧不追踪执行进度；
 - 脚本追加一条最小 progress.md planning 条目（plan id、feature 数、来源 plan 文件）；
@@ -167,7 +167,7 @@
 - **主链 = plan → code**；`/ghs:plan` 结束语建议 `/ghs:code`；
 - **"怎么测"划归 code 侧**：plan 只写锚点（WHAT 必须成立），测试先行与否、测试文件组织不写。
 
-**买删**：sprint"重新解读计划"环节；原生路径 LLM 拆解的全部方差；提示词级约束传播（脚本物理保证逐字）。
+**对应删减**：sprint"重新解读计划"环节；原生路径 LLM 拆解的全部方差；提示词级约束传播（脚本物理保证逐字）。
 
 ### P2.5 to-features 正名（跨技能，纯机械，独立 commit）
 
@@ -189,7 +189,7 @@
 - 措辞注意：archive / status 文档中写"归档已完成 plan 的 **feature 组**"，避免读成归档 plan 文档；
 - **行为零变更**；老项目 re-init。
 
-**买删**："sprint" 时间盒仪式词汇退役（名实相符）。
+**对应删减**："sprint" 时间盒仪式词汇退役（名实相符）。
 
 ### P3 评审环压缩（5-7 次模型调用 → 硬封顶 2-4 次）
 
@@ -252,7 +252,7 @@ Phase 5 reject（用户主动）→ 定向修订（无模型评审）→ 回审�
 5. **Contract Deficiency**（可选节）——判定为"契约漏了而非正文多了"的项，转用户裁决；
 6. signal 行（`REVIEW COMPLETE | ...`）。
 
-**买删**：多轮 revise 循环、breach/MAX_BREACHES、`rejected` 死枚举、max_rounds 协商、修订日志、12 项 checklist、Plan Summary 节、Phase 2/3 分支树 ~70%。
+**对应删减**：多轮 revise 循环、breach/MAX_BREACHES、`rejected` 死枚举、max_rounds 协商、修订日志、12 项 checklist、Plan Summary 节、Phase 2/3 分支树 ~70%。
 
 ### P4 builder-check 合并进评审席（评审第④步）
 
@@ -319,7 +319,7 @@ P7 预案不在本表（见 §5 P7）。
 | 轻档单轮 | 契约确认与任务卡审批合一（§5 P5） |
 | **封顶计数落盘**（builder Q1） | status.json 增 `reject_count` + `final_fix_pending`——落盘是"文件真相源"原则的必然，不做内存推导（§5 P3） |
 | **物化失败重派语义**（builder Q2） | 定点重写任务节、契约头与设计体冻结；禁止全量重新生成（§5 P2） |
-| **plan 对象 schema**（builder Q3） | 必填 id/name/status/plan_ref/created_at/features；删 `goal`/`description` 散文字段（plan_ref 的买删）（§5 P2） |
+| **plan 对象 schema**（builder Q3） | 必填 id/name/status/plan_ref/created_at/features；删 `goal`/`description` 散文字段（plan_ref 的对应删减）（§5 P2） |
 | **P2.5 扫除边界**（builder Q4） | 验收 = `grep -ri sprint plugin/ README*.md` 归零（400+ 处含代码标识符）；写入面/接口面/progress.md 标题同步换；归档格式变化随正名（§5 P2.5） |
 | **契约重放机制**（builder Q5） | 原地覆盖新契约头、旧正文作废、status 回 designing、计数归零、全新 Phase 3（§5 P3） |
 | **README 纳入**（builder Q6） | `README.md` / `README-zh.md` 纳入 P2.5（§5 P2.5） |
