@@ -6,7 +6,7 @@ argument-hint: "[requirement description]"
 
 # Technical Plan Generation
 
-Produce an executable technical plan through multi-agent collaboration. The dispatcher (main conversation) coordinates a plan designer (Plan subagent) and a plan reviewer (architect subagent), iterating via review-revise cycles until the plan is ready.
+Produce an executable technical plan through multi-agent collaboration. The dispatcher (main conversation) coordinates a plan designer (Plan subagent) and a plan reviewer (architect subagent), operating under a hard review cap: one full review, then at most one targeted revision, one targeted re-review, and one final revision.
 
 ## Flow Overview
 
@@ -52,7 +52,7 @@ All intermediate files are stored under `.ghs/plans/`:
 
 | File | Description |
 |------|-------------|
-| `.ghs/plans/{date}-{slug}.md` | Technical plan (produced by designer) |
+| `.ghs/plans/{date}-{slug}.md` | Technical plan (contract header written by the dispatcher; body designed by the Plan subagent and concatenated by the dispatcher) |
 | `.ghs/plans/{date}-{slug}-context.md` | Project context snapshot (pre-extracted architectural summary) |
 | `.ghs/plans/{date}-{slug}-review.md` | Review report (produced by reviewer) |
 | `.ghs/plans/{date}-{slug}-status.json` | Status file (maintained by dispatcher) |
@@ -85,7 +85,6 @@ State is tracked via `.ghs/plans/{date}-{slug}-status.json`:
 
 **Field descriptions**:
 - `status` — six-state enum: `designing | reviewing | revising | pending_approval | approved | aborted`. The old `rejected` value is removed.
-- `lane` (`"light" | "full"`) — written by the Phase 0 entry triage. Until the triage behavior lands, every session is initialized with `"lane": "full"`.
 - `retry_counts` (object with keys `plan`, `review`, `context_snapshot`) — each subagent kind has its own independent retry counter, persisted in this file, reset to `0` on a successful parse of that kind. Per-kind cap: `MAX_RETRY = 1`.
 - `reject_count` (int, default `0`) — cumulative count of Phase 5 approval rejections in this session. When `reject_count >= 3`, stop cycling and suggest a contract replay (back to Phase 2) instead of another revision.
 - `final_fix_pending` (bool, default `false`) — set to `true` when a targeted re-review still leaves residual issues. While it is `true`, exactly one targeted revision is allowed and no further re-review runs; the flag is cleared when the session enters `pending_approval` or `aborted`.
@@ -617,8 +616,8 @@ Question: "是否批准该计划？" Options: `批准（归档并物化）` / `�
 
 - **approve** → Phase 6。
 - **reject**：Read status.json first。`reject_count += 1` 并写盘：
-  - `reject_count < 3`：按用户反馈做一次定向修订（Phase 3 模板 + feedback appendix，无模型评审），拼接覆盖写盘，回本 Phase 重新组装审批面。
-  - `reject_count >= 3`：**建议契约重放**（软建议，非硬闸）：AskUserQuestion — 契约重放 / 再修订一次 / 中止。用户亦可任意时刻主动发起重放。
+  - `reject_count < 3`：置 `status: "revising"`（写穿），按用户反馈做一次定向修订（Phase 3 模板 + feedback appendix，无模型评审），拼接覆盖写盘，置回 `status: "pending_approval"` 后重新组装审批面。
+  - `reject_count >= 3`：**建议契约重放**（软建议，非硬闸）：AskUserQuestion — 契约重放 / 再修订一次 / 中止。再修订一次与 <3 路径同一状态纪律（revising → pending_approval，写穿）。用户亦可任意时刻主动发起重放。
 - **契约重放**（回边 Phase 5 → Phase 2）：同一 `{plan_file}` 原地覆盖 — dispatcher 重新走 Phase 2（起草新契约头 + 用户确认 + Write 覆盖），旧正文整体作废删除（它映射的是旧契约），status → `designing`，`reject_count` 与 `retry_counts` 归零，随后全新 Phase 3。`<review_file>` 无需删除 — 下一次全量评审会覆盖写。
 - **中止** → status `aborted`，停止。
 
@@ -671,16 +670,16 @@ Question: "是否批准该计划？" Options: `批准（归档并物化）` / `�
 
 1. **One question at a time**: When using AskUserQuestion to follow up with the user, ask exactly one question. Do not move to the next question until the current one is answered. Exception: the Phase 4 builder-question round is a single batched AskUserQuestion (see Phase 4).
 
-3. **Role isolation**:
+2. **Role isolation**:
    - The plan designer cannot communicate directly with the user; all questions are relayed through the dispatcher
    - The plan reviewer cannot communicate directly with the user; all questions are relayed through the dispatcher
    - The plan designer and reviewer do not interact directly; information is exchanged indirectly through files
 
-4. **Files as the sole communication medium**: All information between the three roles is transmitted through files. The dispatcher coordinates via the status file and completion signals from agent outputs. Files are the single source of the dispatcher's own state: at every branch point, Read status.json first and branch only on the values just read; write a status change in the same turn as the file write it describes (write-through). No deriving dispatcher state from conversation memory.
+3. **Files as the sole communication medium**: All information between the three roles is transmitted through files. The dispatcher coordinates via the status file and completion signals from agent outputs. Files are the single source of the dispatcher's own state: at every branch point, Read status.json first and branch only on the values just read; write a status change in the same turn as the file write it describes (write-through). No deriving dispatcher state from conversation memory.
 
-5. **Reviews must be severity-graded**: Every issue from the reviewer must have a severity label (Unwarranted/Severe/Medium/Optimization). Reviews without severity labels are invalid.
+4. **Reviews must be severity-graded**: Every issue from the reviewer must have a severity label (Unwarranted/Severe/Medium/Optimization). Reviews without severity labels are invalid.
 
-6. **Plan designer must understand the project first**: The plan designer must understand the existing project architecture before designing. The context snapshot provides pre-extracted architectural knowledge; the designer reads this first and only falls back to raw files when the snapshot is insufficient. No designing in a vacuum.
+5. **Plan designer must understand the project first**: The plan designer must understand the existing project architecture before designing. The context snapshot provides pre-extracted architectural knowledge; the designer reads this first and only falls back to raw files when the snapshot is insufficient. No designing in a vacuum.
 
 ## Error Handling
 
@@ -721,7 +720,7 @@ This time you MUST:
 
 Example (correct):
 <<<PLAN_START>>>
-# My Plan
+## Current State
 ... content ...
 <<<PLAN_END>>>
 PLAN DESIGN COMPLETE

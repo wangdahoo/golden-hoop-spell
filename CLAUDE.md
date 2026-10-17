@@ -14,7 +14,7 @@ Each skill is a self-contained directory under `plugin/skills/` with a `SKILL.md
 
 The typical skill workflow: resolve project directory via `resolve_project_dir.py` → read `.ghs/` state → perform task → update `.ghs/` state.
 
-`ghs:plan` uses a three-role architecture: a dispatcher (main conversation) orchestrates a plan designer (Plan subagent) and a plan reviewer (general-purpose subagent) through up to 5 review-revise rounds, communicating via files under `.ghs/plans/`.
+`ghs:plan` uses a three-role architecture: a dispatcher (main conversation) orchestrates a plan designer (Plan subagent) and a plan reviewer (general-purpose subagent) under a hard review cap — one full review plus at most one targeted revision, one targeted re-review, and one final revision (4 model calls) — communicating via files under `.ghs/plans/`.
 
 ## Notes
 
