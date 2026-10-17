@@ -347,7 +347,7 @@ def main():
                 f"  - {plan.get('name', 'unknown')} ({plan.get('id')}) [{status}]"
             )
             print(f"    Features: {completed_features}/{len(features)} completed")
-            print(f"    Goal: {plan.get('goal', 'No goal defined')}")
+            print(f"    Plan doc: {plan.get('plan_ref', 'n/a')}")
             print()
         return 0
 

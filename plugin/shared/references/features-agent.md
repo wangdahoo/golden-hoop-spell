@@ -135,7 +135,6 @@ The plan number in the feature ID must match its parent plan. Feature numbers ar
     {
       "id": "string (required, unique, format: p{number})",
       "name": "string (required)",
-      "goal": "string",
       "status": "planning | in_progress | completed | on_hold",
       "created_at": "YYYY-MM-DD",
       "features": [ /* feature objects */ ]

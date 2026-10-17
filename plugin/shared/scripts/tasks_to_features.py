@@ -63,6 +63,9 @@ def extract_section(text: str, title: str) -> str:
 def extract_global_constraints(plan_text: str) -> list:
     """Verbatim lines of the contract header's Global Constraints (bullet marker stripped)."""
     body = extract_section(plan_text, "Global Constraints")
+    # Task cards are H3, so a light-lane plan (no design body) never closes the
+    # section with another `## ` heading — stop at the first `### ` instead.
+    body = re.split(r"^### ", body, maxsplit=1, flags=re.MULTILINE)[0]
     return [
         re.sub(r"^-\s+", "", l).strip()
         for l in body.splitlines()
@@ -74,7 +77,9 @@ def derive_plan_name(plan_text: str) -> str:
     """First sentence of ## Intent, truncated to NAME_MAX_CHARS."""
     body = extract_section(plan_text, "Intent")
     first_line = next((l.strip() for l in body.splitlines() if l.strip()), "")
-    sentence = re.split(r"[。？！.!?]", first_line, maxsplit=1)[0].strip()
+    # CJK terminators split unconditionally; ASCII ones only at whitespace/EOL,
+    # so dots inside identifiers ("session.refresh()") and versions ("v1.2") survive.
+    sentence = re.split(r"[。？！]|[.!?](?:\s+|$)", first_line, maxsplit=1)[0].strip()
     return sentence[:NAME_MAX_CHARS]
 
 
@@ -129,7 +134,8 @@ def parse_task_cards(plan_text: str):
                     return None, f"malformed: Task {idx + 1} UNDEFINED-INPUT anchor without criterion: {anchor!r}"
                 continue
             criterion = anchor.split(":", 1)[1].strip() if ":" in anchor else ""
-            if not criterion or EMPTY_CRITERION_RE.match(criterion):
+            # Trailing punctuation must not launder a banned empty judgement.
+            if not criterion or EMPTY_CRITERION_RE.match(criterion.rstrip("。？！.!?…")):
                 return None, f"malformed: Task {idx + 1} anchor with an empty judgement (forbidden per spec): {anchor!r}"
 
         cards.append({
@@ -227,6 +233,12 @@ def main() -> int:
         print(f"tasks_to_features: error: features.json not found at {features_path}", file=sys.stderr)
         return 2
 
+    try:
+        plan_ref = plan_file.relative_to(project_dir).as_posix()
+    except ValueError:
+        print(f"tasks_to_features: error: plan file is outside project dir: {plan_file}", file=sys.stderr)
+        return 2
+
     plan_text = plan_file.read_text(encoding="utf-8")
     constraints = extract_global_constraints(plan_text)
     cards, reason = parse_task_cards(plan_text)
@@ -235,8 +247,12 @@ def main() -> int:
             return emit({"status": "no_task_zone", "reason": reason}, 1)
         return emit({"status": "malformed", "reason": reason}, 1)
 
-    with open(features_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        with open(features_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        print(f"tasks_to_features: error: cannot read features.json: {e}", file=sys.stderr)
+        return 2
 
     numbers = [
         int(m.group(1))
@@ -247,7 +263,6 @@ def main() -> int:
     plan_number = (max(numbers) + 1) if numbers else 1
     plan_id = f"p{plan_number}"
 
-    plan_ref = plan_file.relative_to(project_dir).as_posix()
     plan_obj = {
         "id": plan_id,
         "name": derive_plan_name(plan_text),

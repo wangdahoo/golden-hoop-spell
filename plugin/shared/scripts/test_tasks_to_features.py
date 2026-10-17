@@ -204,6 +204,89 @@ class TasksToFeaturesTests(unittest.TestCase):
         self.assertIn("p1", prog.split("## Feature Planning -", 1)[1].split("##", 1)[0])
         self.assertLess(prog.index("## Feature Planning -"), prog.index("<!-- new entries above -->"))
 
+    def test_11_light_lane_constraints_stop_at_task_tail(self):
+        body = """# Light Plan
+
+## Intent
+Fix the login crash.
+
+## Global Constraints
+- All tests must pass
+- No new dependencies
+
+### Task 1: Fix login crash
+- Files: src/auth/login.py
+- Interfaces: refresh(session) -> Session
+- Points: Fix the expired-token crash
+- Anchors:
+  - refresh: expired token returns 401
+"""
+        plan = write_plan(self.project, body)
+        code, out, err = run_cli(self.project, plan)
+        self.assertEqual(code, 0, err)
+        data = json.loads((self.project / ".ghs" / "features.json").read_text(encoding="utf-8"))
+        criteria = data["plans"][0]["features"][0]["acceptance_criteria"]
+        self.assertEqual(criteria, [
+            "All tests must pass",
+            "No new dependencies",
+            "refresh: expired token returns 401",
+        ])
+
+    def test_12_plan_file_outside_project_dir_exits_2(self):
+        outside = Path(self._tmp.name).parent / "outside-plan.md"
+        outside.write_text(SAMPLE_PLAN, encoding="utf-8")
+        try:
+            proc = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "tasks_to_features.py"),
+                 "--project-dir", str(self.project), "--plan-file", str(outside)],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(proc.returncode, 2)
+            self.assertEqual(proc.stdout.strip(), "")
+            self.assertIn("error", proc.stderr.lower())
+        finally:
+            outside.unlink(missing_ok=True)
+
+    def test_13_corrupt_features_json_exits_2(self):
+        (self.project / ".ghs" / "features.json").write_text("{broken", encoding="utf-8")
+        plan = write_plan(self.project, SAMPLE_PLAN)
+        proc = subprocess.run(
+            [sys.executable, str(SCRIPT_DIR / "tasks_to_features.py"),
+             "--project-dir", str(self.project), "--plan-file", str(plan)],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(proc.returncode, 2)
+        self.assertEqual(proc.stdout.strip(), "")
+        self.assertIn("error", proc.stderr.lower())
+
+    def test_14_name_sentence_boundaries(self):
+        # ASCII dots inside identifiers/version numbers are not sentence ends.
+        body = SAMPLE_PLAN.replace(
+            "重构会话刷新逻辑以消除过期 token 崩溃。",
+            "Fix session.refresh() crash in v1.2.")
+        plan = write_plan(self.project, body)
+        run_cli(self.project, plan)
+        data = json.loads((self.project / ".ghs" / "features.json").read_text(encoding="utf-8"))
+        self.assertEqual(data["plans"][-1]["name"], "Fix session.refresh() crash in v1.2")
+        # CJK terminators still split mid-line.
+        body = SAMPLE_PLAN.replace("重构会话刷新逻辑以消除过期 token 崩溃。",
+                                   "修复登录崩溃。保持兼容。")
+        plan = write_plan(self.project, body)
+        run_cli(self.project, plan)
+        data = json.loads((self.project / ".ghs" / "features.json").read_text(encoding="utf-8"))
+        self.assertEqual(data["plans"][-1]["name"], "修复登录崩溃")
+
+    def test_15_empty_criterion_trailing_punctuation(self):
+        # Trailing punctuation must not launder a banned empty judgement.
+        for variant in ("works correctly.", "works correctly!", "测试通过。", "ok."):
+            body = SAMPLE_PLAN.replace(
+                "test_refresh_rejects_expired: 过期 token 返回 401 且不落库",
+                f"test_refresh_rejects_expired: {variant}")
+            plan = write_plan(self.project, body)
+            _, out, _ = run_cli(self.project, plan)
+            self.assertEqual(out["status"], "malformed", variant)
+            self.assertIn("empty judgement", out["reason"], variant)
+
 
 if __name__ == "__main__":
     unittest.main()

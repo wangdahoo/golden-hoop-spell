@@ -93,7 +93,7 @@ def main():
 
             print(f"{status_emoji} Plan: {plan_name} ({plan_id})")
             print(f"   Status: {plan_status}")
-            print(f"   Goal: {plan.get('goal', 'No goal defined')}")
+            print(f"   Plan doc: {plan.get('plan_ref', 'n/a')}")
             print()
 
             status_counts = format_feature_status(features)
