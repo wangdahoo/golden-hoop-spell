@@ -678,28 +678,48 @@ Do you approve this plan?
 
   > The reject path does NOT silently continue past max_rounds. Each extra round requires explicit user opt-in, AND the total number of breaches is capped at `MAX_BREACHES` (defined in [## Format Recovery](#format-recovery) → `**Constants**`). Once the cap is reached, the dispatcher can no longer spawn a new round — the user must accept or abort. This closes BOTH the "silent continue" gap AND the "user keeps picking continue forever" gap (the latter being the actual root cause of the Round 5 runaway in the diagnostic session).
 
-### Phase 6: Finalization
+### Phase 6: Archive + Materialize
 
-1. Copy the plan from `.ghs/plans/` to `docs/ghs/plans/`:
+1. Copy the approved plan to the permanent archive:
    ```bash
    mkdir -p ${PROJECT_DIR}/docs/ghs/plans
    cp ${PROJECT_DIR}/.ghs/plans/${plan_file} ${PROJECT_DIR}/docs/ghs/plans/${plan_file}
    ```
 
-2. **Check for accepted-with-fail marker**: Read the top of the plan file. If it contains a line matching `<!-- WARNING: accepted with unfixed issues`, set `ACCEPTED_WITH_FAIL = true` and extract the `<R>`, `<B>`, `<X>`, `<Y>` values from the marker. Otherwise set `ACCEPTED_WITH_FAIL = false`.
+2. **Check for accepted-with-fail marker**: Read the top of the plan file. If it contains a line matching `<!-- WARNING: accepted with unfixed issues`, set `ACCEPTED_WITH_FAIL = true` and extract the `<X>`/`<Y>` values; otherwise `false`.
 
-3. Commit the finalized plan document. If `ACCEPTED_WITH_FAIL == true`, append the suffix `[accepted-with-fail; S=<X> M=<Y>]` to the commit message so that future `git log` readers can identify plans that passed with unfixed Severe/Medium issues:
-   ```bash
-   cd ${PROJECT_DIR} && git add docs/ghs/plans/${plan_file} && git commit -m "docs(plan): add technical plan - ${plan_file}[accepted-with-fail; S=<X> M=<Y>]"
-   ```
-   If `ACCEPTED_WITH_FAIL == false`, use the original commit message:
+3. Commit the archived plan. With the `accepted-with-fail` suffix when applicable:
    ```bash
    cd ${PROJECT_DIR} && git add docs/ghs/plans/${plan_file} && git commit -m "docs(plan): add technical plan - ${plan_file}"
    ```
+   (`ACCEPTED_WITH_FAIL == true` 时消息追加后缀 `[accepted-with-fail; S=<X> M=<Y>]`。)
 
-4. Update status to `approved`. If `ACCEPTED_WITH_FAIL == true`, also write `"accepted_with_fail": true` to the status file (so `status.json` can be grepped after-the-fact for "带病通过" plans). The `status` field itself stays `"approved"` (this avoids a new state-machine value); `accepted_with_fail` is a separate boolean flag.
+4. **Materialize the task tail** (plan 闭环 — 主链就此收敛为 plan → code):
+   ```bash
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/tasks_to_features.py \
+     --project-dir <PROJECT_DIR> \
+     --plan-file <PROJECT_DIR>/docs/ghs/plans/<plan_file>
+   ```
+   Read the JSON from stdout and branch on `status`:
 
-5. Report the final plan location and a summary of review rounds to the user. If `ACCEPTED_WITH_FAIL == true`, explicitly warn the user: "This plan was accepted with unfixed issues (Severe=<X>, Medium=<Y>). These issues are listed in the review report and must be tracked separately." Suggest the next step: use `/ghs:to-features` to break the plan into features for implementation.
+   - **`parsed`**: features written. Report plan id and feature ids to the user.
+   - **`no_task_zone`**: the plan has no task tail. Tell the user materialization was skipped and suggest `/ghs:to-features` to break the plan down by LLM instead.
+   - **`malformed`**: **定点重写任务节** — 物化失败发生在审批归档之后，禁止全量重新生成（会静默作废已通过的评审）。Re-dispatch the designer (same Phase 3 dispatch, subagent_type Plan) with the FULL current plan file inlined as FROZEN plus this appendix appended:
+
+     ```
+     ## IMPORTANT: Targeted Task-Tail Rewrite
+     Your previous task tail could not be parsed by the materializer:
+     <reason from the parser JSON>
+     Rewrite ONLY the task tail (the `### Task` cards) so it conforms to the
+     serialization rules in plan-designer.md. Everything before the first
+     `### Task` heading (design body) is FROZEN — reproduce it verbatim,
+     unchanged. Output the FULL body again between the delimiters, starting at
+     `## Current State`.
+     ```
+
+     On success, concatenate 契约头 + 新正文 and overwrite `${PROJECT_DIR}/.ghs/plans/${plan_file}` AND `docs/ghs/plans/${plan_file}` (both copies), then re-run the materializer command above. Still `malformed` after one targeted rewrite → AskUserQuestion with two options: 跳过物化（用户稍后走 `/ghs:to-features`）/ 再修一次任务节（重复本分支，仅限一次）。
+
+5. Update status to `approved` (and write `"accepted_with_fail": true` if applicable). Report the archived plan path, feature count, and close with: suggest `/ghs:code` to start implementing the first feature.
 
 ---
 

@@ -24,7 +24,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 import parse_completion_signal as helper  # noqa: E402
 
-FEATURE_ID = "s3-feat-001"
+FEATURE_ID = "p3-feat-001"
 OTHER_ID = "s3-feat-002"
 
 

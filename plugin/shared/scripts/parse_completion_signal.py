@@ -14,11 +14,11 @@ markdown bold). This helper applies four strategies in priority order so the
 dispatcher never has to re-grep the text itself.
 
 Usage:
-    command python3 parse_completion_signal.py --feature-id s1-feat-002 --stdin < raw.txt
-    command python3 parse_completion_signal.py --feature-id s1-feat-002 \\
+    command python3 parse_completion_signal.py --feature-id p1-feat-002 --stdin < raw.txt
+    command python3 parse_completion_signal.py --feature-id p1-feat-002 \\
         --input-file path/to/raw.txt --min-length 50
-    command python3 parse_completion_signal.py --feature-id s1-feat-002 \\
-        --input-string "FEATURE COMPLETE: s1-feat-002"
+    command python3 parse_completion_signal.py --feature-id p1-feat-002 \\
+        --input-string "FEATURE COMPLETE: p1-feat-002"
 
 Output: a single JSON object on stdout with the following shape:
     {
@@ -30,7 +30,7 @@ Output: a single JSON object on stdout with the following shape:
       "raw_signal_line": "<stripped signal line, or null>",
       "warnings": ["...", "..."],
       "meta": {
-        "feature_id": "s1-feat-002",
+        "feature_id": "p1-feat-002",
         "input_length": 1234
       }
     }
@@ -371,7 +371,7 @@ def main() -> int:
     parser.add_argument(
         "--feature-id",
         required=True,
-        help="Feature ID to match in the completion signal (e.g. s1-feat-002)",
+        help="Feature ID to match in the completion signal (e.g. p1-feat-002)",
     )
     parser.add_argument(
         "--stdin",

@@ -26,6 +26,7 @@ Output: a single JSON object on stdout with the following shape:
       "completion_signal": "<stripped signal line, including variables like "
                            "Verdict: PASS/FAIL, or null>",
       "verdict": "PASS" | "FAIL" | null,    # only for --kind review
+      "unwarranted": <int | null>,          # only for --kind review
       "warnings": ["...", "..."],
       "meta": {
         "kind": "plan",
@@ -59,6 +60,10 @@ DEFAULT_MIN_LENGTH = 200
 
 # Regex that pulls `Verdict: PASS` or `Verdict: FAIL` out of a review signal line.
 VERDICT_RE = re.compile(r"Verdict:\s*(PASS|FAIL)")
+
+# Regex that pulls the Unwarranted count out of a review signal line:
+# `REVIEW COMPLETE | Verdict: FAIL | Unwarranted: 2 Severe: 0 ...`
+UNWARRANTED_RE = re.compile(r"Unwarranted:\s*(\d+)")
 
 # Marker that plan-designer prints at the end of its response; everything after
 # it is metadata that must not leak into the extracted content.
@@ -142,6 +147,13 @@ def _extract_verdict(signal_line: "str | None", raw_text: str) -> "str | None":
     if m:
         return m.group(1)
     return None
+
+
+def _extract_unwarranted(signal_line: "str | None", raw_text: str) -> "int | None":
+    """Extract the Unwarranted count from the completion-signal line, then the raw tail."""
+    source = signal_line or (raw_text[-600:] if len(raw_text) > 600 else raw_text)
+    m = UNWARRANTED_RE.search(source)
+    return int(m.group(1)) if m else None
 
 
 def _resolve_tokens(args) -> "tuple[str, str]":
@@ -347,12 +359,18 @@ def parse_raw(
                 if kind == "review"
                 else None
             )
+            unwarranted_value = (
+                _extract_unwarranted(captured_signal_line, raw_text)
+                if kind == "review"
+                else None
+            )
             return {
                 "status": status,
                 "content": content.strip(),
                 "strategy": strategy_name,
                 "completion_signal": captured_signal_line,
                 "verdict": verdict,
+                "unwarranted": unwarranted_value,
                 "warnings": warnings,
                 "meta": {
                     "kind": kind,
@@ -374,12 +392,18 @@ def parse_raw(
         if kind == "review"
         else None
     )
+    unwarranted_value = (
+        _extract_unwarranted(captured_signal_line, raw_text)
+        if kind == "review"
+        else None
+    )
     return {
         "status": status,
         "content": "",
         "strategy": "none",
         "completion_signal": captured_signal_line,
         "verdict": verdict,
+        "unwarranted": unwarranted_value,
         "warnings": warnings,
         "meta": {
             "kind": kind,
