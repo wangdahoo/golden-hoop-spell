@@ -658,7 +658,7 @@ Do you approve this plan?
 
 4. Update status to `approved`. If `ACCEPTED_WITH_FAIL == true`, also write `"accepted_with_fail": true` to the status file (so `status.json` can be grepped after-the-fact for "带病通过" plans). The `status` field itself stays `"approved"` (this avoids a new state-machine value); `accepted_with_fail` is a separate boolean flag.
 
-5. Report the final plan location and a summary of review rounds to the user. If `ACCEPTED_WITH_FAIL == true`, explicitly warn the user: "This plan was accepted with unfixed issues (Severe=<X>, Medium=<Y>). These issues are listed in the review report and must be tracked separately." Suggest the next step: use `/ghs:sprint` to break the plan into features for implementation.
+5. Report the final plan location and a summary of review rounds to the user. If `ACCEPTED_WITH_FAIL == true`, explicitly warn the user: "This plan was accepted with unfixed issues (Severe=<X>, Medium=<Y>). These issues are listed in the review report and must be tracked separately." Suggest the next step: use `/ghs:to-features` to break the plan into features for implementation.
 
 ---
 

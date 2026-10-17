@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Archive completed sprint files to .ghs/archived directory."""
+"""Archive completed plan files to .ghs/archived directory."""
 
 import argparse
 import json
@@ -15,23 +15,23 @@ ARCHIVED_DIR = ".ghs/archived"
 GHS_DIR = ".ghs"
 
 
-def get_all_sprints(features_data: Dict) -> List[Dict]:
-    """Get all sprints from features.json."""
-    return features_data.get("sprints", [])
+def get_all_plans(features_data: Dict) -> List[Dict]:
+    """Get all plans from features.json."""
+    return features_data.get("plans", [])
 
 
-def get_completed_sprints(features_data: Dict) -> List[Dict]:
-    """Get all completed sprints from features.json."""
-    sprints = features_data.get("sprints", [])
-    return [s for s in sprints if s.get("status") == "completed"]
+def get_completed_plans(features_data: Dict) -> List[Dict]:
+    """Get all completed plans from features.json."""
+    plans = features_data.get("plans", [])
+    return [p for p in plans if p.get("status") == "completed"]
 
 
-def get_in_progress_sprint(features_data: Dict) -> Optional[Dict]:
-    """Get the current in-progress sprint (if any)."""
-    sprints = features_data.get("sprints", [])
-    for sprint in sprints:
-        if sprint.get("status") in ("in_progress", "planning"):
-            return sprint
+def get_in_progress_plan(features_data: Dict) -> Optional[Dict]:
+    """Get the current in-progress plan (if any)."""
+    plans = features_data.get("plans", [])
+    for plan in plans:
+        if plan.get("status") in ("in_progress", "planning"):
+            return plan
     return None
 
 
@@ -42,42 +42,42 @@ def create_archive_structure(project_dir: Path) -> Path:
     return archived_path
 
 
-def archive_sprint_files(
-    sprint: Dict, features_data: Dict, project_dir: Path, archived_path: Path
+def archive_plan_files(
+    plan: Dict, features_data: Dict, project_dir: Path, archived_path: Path
 ) -> Tuple[Path, Path]:
-    """Archive a completed sprint's data.
+    """Archive a completed plan's data.
 
     Returns:
         Tuple of (archived_features_path, archived_progress_path)
     """
-    sprint_id = sprint.get("id", "unknown")
-    sprint_name = sprint.get("name", "unnamed").replace(" ", "_").lower()
+    plan_id = plan.get("id", "unknown")
+    plan_name = plan.get("name", "unnamed").replace(" ", "_").lower()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    archive_folder = archived_path / f"{sprint_id}_{sprint_name}_{timestamp}"
+    archive_folder = archived_path / f"{plan_id}_{plan_name}_{timestamp}"
     archive_folder.mkdir(parents=True, exist_ok=True)
 
     archive_features = archive_folder / "features.json"
     archive_progress = archive_folder / "progress.md"
 
-    archived_sprint_data = {
+    archived_plan_data = {
         "project": features_data.get("project", {}),
-        "archived_sprint": sprint,
+        "archived_plan": plan,
         "metadata": {
             "archived_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "original_sprint_id": sprint_id,
+            "original_plan_id": plan_id,
         },
     }
 
     with open(archive_features, "w", encoding="utf-8") as f:
-        json.dump(archived_sprint_data, f, indent=2)
+        json.dump(archived_plan_data, f, indent=2)
 
     progress_path = project_dir / GHS_DIR / "progress.md"
     if progress_path.exists():
-        sessions = extract_sprint_sessions(progress_path, sprint_id)
+        sessions = extract_plan_sessions(progress_path, plan_id)
         if sessions:
             with open(archive_progress, "w", encoding="utf-8") as f:
-                f.write(f"# Progress Log - {sprint.get('name', sprint_id)}\n\n")
+                f.write(f"# Progress Log - {plan.get('name', plan_id)}\n\n")
                 f.write(f"Archived: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
                 f.write("---\n\n")
                 f.write(sessions)
@@ -85,16 +85,16 @@ def archive_sprint_files(
     return archive_features, archive_progress
 
 
-def _entry_matches_sprint(entry: str, sprint_id: str) -> bool:
-    """Check if a session entry belongs to a given sprint by inspecting only the
+def _entry_matches_plan(entry: str, plan_id: str) -> bool:
+    """Check if a session entry belongs to a given plan by inspecting only the
     title line and first few metadata lines — NOT the full body text.
-    This prevents false positives when a session body mentions another sprint ID.
+    This prevents false positives when a session body mentions another plan ID.
     """
     lines = entry.strip().split("\n")
     # Check the title line (first line) and up to the next 10 metadata lines
     header_lines = lines[:11]
     header_text = "\n".join(header_lines).lower()
-    return sprint_id.lower() in header_text
+    return plan_id.lower() in header_text
 
 
 def _split_entries(content: str) -> List[str]:
@@ -108,11 +108,11 @@ def _split_entries(content: str) -> List[str]:
     return entries
 
 
-def extract_sprint_sessions(progress_path: Path, sprint_id: str) -> str:
-    """Extract sessions related to a specific sprint from progress.md.
+def extract_plan_sessions(progress_path: Path, plan_id: str) -> str:
+    """Extract sessions related to a specific plan from progress.md.
 
-    Splits by all H2 headings (## Session, ## Sprint Planning,
-    ## Parallel Orchestration, etc.) and matches sprint_id only in the
+    Splits by all H2 headings (## Session, ## Feature Planning,
+    ## Parallel Orchestration, etc.) and matches plan_id only in the
     title/metadata lines to avoid false positives from body text.
     """
     with open(progress_path, "r", encoding="utf-8") as f:
@@ -122,16 +122,16 @@ def extract_sprint_sessions(progress_path: Path, sprint_id: str) -> str:
     relevant_entries = []
 
     for entry in entries:
-        if _entry_matches_sprint(entry, sprint_id):
+        if _entry_matches_plan(entry, plan_id):
             relevant_entries.append(entry)
 
     return "\n\n".join(relevant_entries)
 
 
-def remove_archived_sprint(features_data: Dict, sprint_id: str) -> Dict:
-    """Remove archived sprint from features.json."""
-    sprints = features_data.get("sprints", [])
-    features_data["sprints"] = [s for s in sprints if s.get("id") != sprint_id]
+def remove_archived_plan(features_data: Dict, plan_id: str) -> Dict:
+    """Remove archived plan from features.json."""
+    plans = features_data.get("plans", [])
+    features_data["plans"] = [p for p in plans if p.get("id") != plan_id]
     features_data["metadata"]["last_updated"] = datetime.now().strftime("%Y-%m-%d")
     return features_data
 
@@ -152,10 +152,10 @@ def reset_progress_md(progress_path: Path):
         f.write(get_progress_template())
 
 
-def remove_sprint_sessions(progress_path: Path, sprint_ids: List[str]):
-    """Remove sessions belonging to the given sprint IDs from progress.md.
+def remove_plan_sessions(progress_path: Path, plan_ids: List[str]):
+    """Remove sessions belonging to the given plan IDs from progress.md.
 
-    Keeps all entries that do not match any of the given sprint IDs.
+    Keeps all entries that do not match any of the given plan IDs.
     Matching is done against title/metadata lines only to avoid false positives.
     """
     with open(progress_path, "r", encoding="utf-8") as f:
@@ -169,8 +169,8 @@ def remove_sprint_sessions(progress_path: Path, sprint_ids: List[str]):
     remaining_entries = []
 
     for entry in entries:
-        # Keep entries that don't match any of the archived sprint IDs
-        if not any(_entry_matches_sprint(entry, sid) for sid in sprint_ids):
+        # Keep entries that don't match any of the archived plan IDs
+        if not any(_entry_matches_plan(entry, pid) for pid in plan_ids):
             remaining_entries.append(entry)
 
     with open(progress_path, "w", encoding="utf-8") as f:
@@ -182,18 +182,18 @@ def remove_sprint_sessions(progress_path: Path, sprint_ids: List[str]):
             f.write("\n\n".join(remaining_entries))
 
 
-def archive_completed_sprints(
+def archive_completed_plans(
     project_dir: Path, dry_run: bool = False, force: bool = False
 ) -> List[Dict]:
-    """Archive completed sprints or all sprints if force=True.
+    """Archive completed plans or all plans if force=True.
 
     Args:
         project_dir: Project directory path
         dry_run: If True, show what would be archived without making changes
-        force: If True, archive all sprints regardless of status
+        force: If True, archive all plans regardless of status
 
     Returns:
-        List of archived sprint info
+        List of archived plan info
     """
     features_path = project_dir / GHS_DIR / "features.json"
     progress_path = project_dir / GHS_DIR / "progress.md"
@@ -206,52 +206,52 @@ def archive_completed_sprints(
         features_data = json.load(f)
 
     if force:
-        sprints_to_archive = get_all_sprints(features_data)
-        if sprints_to_archive:
-            print(f"Force archiving ALL {len(sprints_to_archive)} sprint(s)\n")
+        plans_to_archive = get_all_plans(features_data)
+        if plans_to_archive:
+            print(f"Force archiving ALL {len(plans_to_archive)} plan(s)\n")
     else:
-        sprints_to_archive = get_completed_sprints(features_data)
+        plans_to_archive = get_completed_plans(features_data)
 
-    if not sprints_to_archive:
+    if not plans_to_archive:
         if force:
-            print("No sprints found to archive.")
+            print("No plans found to archive.")
         else:
-            print("No completed sprints to archive.")
+            print("No completed plans to archive.")
         return []
 
     archived_path = create_archive_structure(project_dir)
     archived_info = []
 
-    for sprint in sprints_to_archive:
-        sprint_id = sprint.get("id", "unknown")
-        sprint_name = sprint.get("name", "unknown")
-        sprint_status = sprint.get("status", "unknown")
+    for plan in plans_to_archive:
+        plan_id = plan.get("id", "unknown")
+        plan_name = plan.get("name", "unknown")
+        plan_status = plan.get("status", "unknown")
 
-        print(f"Archiving sprint: {sprint_name} ({sprint_id})")
-        print(f"  Status: {sprint_status}")
+        print(f"Archiving plan: {plan_name} ({plan_id})")
+        print(f"  Status: {plan_status}")
 
         if not dry_run:
-            feat_path, prog_path = archive_sprint_files(
-                sprint, features_data, project_dir, archived_path
+            feat_path, prog_path = archive_plan_files(
+                plan, features_data, project_dir, archived_path
             )
-            features_data = remove_archived_sprint(features_data, sprint_id)
+            features_data = remove_archived_plan(features_data, plan_id)
 
             print(f"  Created: {feat_path.parent}")
             archived_info.append(
                 {
-                    "sprint_id": sprint_id,
-                    "sprint_name": sprint_name,
-                    "sprint_status": sprint_status,
+                    "plan_id": plan_id,
+                    "plan_name": plan_name,
+                    "plan_status": plan_status,
                     "archive_path": str(feat_path.parent),
                 }
             )
         else:
-            print(f"  [DRY RUN] Would archive to: {archived_path}/{sprint_id}_...")
+            print(f"  [DRY RUN] Would archive to: {archived_path}/{plan_id}_...")
             archived_info.append(
                 {
-                    "sprint_id": sprint_id,
-                    "sprint_name": sprint_name,
-                    "sprint_status": sprint_status,
+                    "plan_id": plan_id,
+                    "plan_name": plan_name,
+                    "plan_status": plan_status,
                     "dry_run": True,
                 }
             )
@@ -260,21 +260,21 @@ def archive_completed_sprints(
         with open(features_path, "w", encoding="utf-8") as f:
             json.dump(features_data, f, indent=2)
         print(
-            f"\nUpdated features.json - removed {len(archived_info)} archived sprint(s)"
+            f"\nUpdated features.json - removed {len(archived_info)} archived plan(s)"
         )
 
-        remaining_sprints = features_data.get("sprints", [])
-        if not remaining_sprints:
+        remaining_plans = features_data.get("plans", [])
+        if not remaining_plans:
             reset_progress_md(progress_path)
             print("Reset progress.md to default template")
         else:
-            archived_sprint_ids = [
-                info["sprint_id"] for info in archived_info
+            archived_plan_ids = [
+                info["plan_id"] for info in archived_info
             ]
-            remove_sprint_sessions(progress_path, archived_sprint_ids)
+            remove_plan_sessions(progress_path, archived_plan_ids)
             print(
-                f"Removed {len(archived_info)} archived sprint session(s) from progress.md "
-                f"({len(remaining_sprints)} sprint(s) remaining)"
+                f"Removed {len(archived_info)} archived plan session(s) from progress.md "
+                f"({len(remaining_plans)} plan(s) remaining)"
             )
 
     return archived_info
@@ -282,7 +282,7 @@ def archive_completed_sprints(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Archive completed sprint files to .ghs/archived"
+        description="Archive completed plan files to .ghs/archived"
     )
     parser.add_argument(
         "--project-dir",
@@ -300,19 +300,19 @@ def main():
         "--list",
         "-l",
         action="store_true",
-        help="List completed sprints without archiving",
+        help="List completed plans without archiving",
     )
     parser.add_argument(
         "--force",
         "-f",
         action="store_true",
-        help="Force archive ALL sprints (including incomplete)",
+        help="Force archive ALL plans (including incomplete)",
     )
 
     args = parser.parse_args()
     project_dir = Path(args.project_dir).resolve()
 
-    print("=== Sprint Archiver ===\n")
+    print("=== Plan Archiver ===\n")
     print(f"Project directory: {project_dir}\n")
 
     if args.list:
@@ -325,40 +325,40 @@ def main():
             features_data = json.load(f)
 
         if args.force:
-            sprints = get_all_sprints(features_data)
-            if not sprints:
-                print("No sprints found.")
+            plans = get_all_plans(features_data)
+            if not plans:
+                print("No plans found.")
                 return 0
-            print("All sprints:\n")
+            print("All plans:\n")
         else:
-            sprints = get_completed_sprints(features_data)
-            if not sprints:
-                print("No completed sprints found.")
+            plans = get_completed_plans(features_data)
+            if not plans:
+                print("No completed plans found.")
                 return 0
-            print("Completed sprints:\n")
+            print("Completed plans:\n")
 
-        for sprint in sprints:
-            features = sprint.get("features", [])
+        for plan in plans:
+            features = plan.get("features", [])
             completed_features = len(
                 [f for f in features if f.get("status") == "completed"]
             )
-            status = sprint.get("status", "unknown")
+            status = plan.get("status", "unknown")
             print(
-                f"  - {sprint.get('name', 'unknown')} ({sprint.get('id')}) [{status}]"
+                f"  - {plan.get('name', 'unknown')} ({plan.get('id')}) [{status}]"
             )
             print(f"    Features: {completed_features}/{len(features)} completed")
-            print(f"    Goal: {sprint.get('goal', 'No goal defined')}")
+            print(f"    Goal: {plan.get('goal', 'No goal defined')}")
             print()
         return 0
 
-    archived = archive_completed_sprints(
+    archived = archive_completed_plans(
         project_dir, dry_run=args.dry_run, force=args.force
     )
 
     if not archived:
         return 0
 
-    print(f"\nArchived {len(archived)} sprint(s)")
+    print(f"\nArchived {len(archived)} plan(s)")
     return 0
 
 

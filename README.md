@@ -4,9 +4,11 @@
 
 > 想让那孙猴子听你的？那得会念紧箍咒才行。
 
-A skill suite that keeps Claude on a leash — iterative planning, structured sprints, and disciplined code delivery.
+A skill suite that keeps Claude on a leash — iterative planning, feature breakdown, and disciplined code delivery.
 
-Skills form a pipeline: `init` → `plan` → `sprint` → `code` → `status`/`archive`.
+Skills form a pipeline: `init` → `plan` → `code` → `status`/`archive`.
+
+Need to break a plan document or raw requirements into features first? Use `/ghs:to-features` as an alternative entry point.
 
 ## Skills
 
@@ -14,11 +16,11 @@ Skills form a pipeline: `init` → `plan` → `sprint` → `code` → `status`/`
 |-------|-------------|
 | `/ghs:init` | Initialize project tracking |
 | `/ghs:plan` | Generate technical plans via iterative design & review |
-| `/ghs:sprint` | Sprint planning & feature breakdown |
+| `/ghs:to-features` | Turn a plan document or raw requirements into atomic features |
 | `/ghs:code` | Feature implementation (single/parallel) |
 | `/ghs:status` | Show project status |
-| `/ghs:archive` | Archive completed sprints |
-| `/ghs:force-archive` | Force archive all sprints |
+| `/ghs:archive` | Archive completed plans' feature groups |
+| `/ghs:force-archive` | Force archive all plans' feature groups |
 
 ## Installation
 
@@ -49,17 +51,14 @@ claude --plugin-dir /path/to/golden-hoop-spell/plugin
 # 2. Design a technical plan
 /ghs:plan Add user authentication with JWT  # → docs/ghs/plans/2026-06-10-jwt-auth.md
 
-# 3. Break plan into sprint features
-/ghs:sprint docs/ghs/plans/2026-06-10-jwt-auth.md
-
-# 4. Implement features
+# 3. Implement features
 /ghs:code            # one feature at a time
 /ghs:code --parallel # independent features in parallel
 
-# 5. Check progress
+# 4. Check progress
 /ghs:status
 
-# 6. Archive when sprint is done
+# 5. Archive when the plan is done
 /ghs:archive
 ```
 
@@ -67,13 +66,13 @@ claude --plugin-dir /path/to/golden-hoop-spell/plugin
 
 ### `/ghs:init` — Initialize Project Tracking
 
-Set up the `.ghs/` directory for tracking sprints and progress. Run this once per project before using any other skills.
+Set up the `.ghs/` directory for tracking plans and progress. Run this once per project before using any other skills.
 
 ```
 /ghs:init
 ```
 
-Creates `.ghs/features.json` (sprint/feature tracking), `.ghs/progress.md` (session logs), and updates `.gitignore`.
+Creates `.ghs/features.json` (plan/feature tracking), `.ghs/progress.md` (session logs), and updates `.gitignore`.
 
 ### `/ghs:plan` — Generate Technical Plans
 
@@ -86,19 +85,19 @@ Produce an executable technical plan through iterative design-and-review cycles.
 
 The argument is your requirement description. After review passes, you approve the plan and it's saved to `docs/ghs/plans/` (e.g. `docs/ghs/plans/2026-06-10-jwt-auth.md`).
 
-### `/ghs:sprint` — Sprint Planning & Feature Breakdown
+### `/ghs:to-features` — Turn a Plan into Atomic Features
 
-Break requirements into atomic features with acceptance criteria, dependencies, and effort estimates. Each feature should be completable in 2–4 hours.
+Break a plan document or raw requirements into atomic features with acceptance criteria, dependencies, and effort estimates. Each feature should be completable in 2–4 hours.
 
 ```
-/ghs:sprint docs/ghs/plans/2026-06-10-jwt-auth.md
+/ghs:to-features docs/ghs/plans/2026-06-10-jwt-auth.md
 ```
 
-Provide a description of what to sprint on. The skill reads any existing technical plans and generates a structured feature list in `.ghs/features.json`.
+Provide a plan document path or a description of what to build. The skill generates a structured feature list in `.ghs/features.json`.
 
 ### `/ghs:code` — Feature Implementation
 
-Implement features from the current sprint one by one (default) or in parallel.
+Implement features from the current plan one by one (default) or in parallel.
 
 ```
 /ghs:code             # implement the next pending feature
@@ -109,21 +108,21 @@ Each feature is implemented, tested, and committed. Progress is tracked in `.ghs
 
 ### `/ghs:status` — Show Project Status
 
-Display current sprint info, feature completion stats, and recent session activity.
+Display current plan info, feature completion stats, and recent session activity.
 
 ```
 /ghs:status
 ```
 
-### `/ghs:archive` — Archive Completed Sprints
+### `/ghs:archive` — Archive Completed Plans' Feature Groups
 
-Move completed sprint data to `.ghs/archived/` and reset tracking files for a fresh sprint.
+Move completed plans' feature data to `.ghs/archived/` and reset tracking files for a fresh plan.
 
 ```
 /ghs:archive
 ```
 
-Only archives sprints that have reached `completed` status. For archiving regardless of status, use `/ghs:force-archive` (will ask for confirmation).
+Only archives plans that have reached `completed` status. For archiving regardless of status, use `/ghs:force-archive` (will ask for confirmation).
 
 ## License
 

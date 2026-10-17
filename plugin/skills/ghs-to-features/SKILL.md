@@ -1,9 +1,9 @@
 ---
-name: ghs:sprint
-description: "Plan a sprint by breaking requirements into atomic, implementable features with acceptance criteria and dependencies. Use when the user provides requirements or a feature list and wants to organize them into a structured sprint plan. Also use to modify an existing sprint — add features, change priorities, or replan."
+name: ghs:to-features
+description: "Turn a plan document or raw requirements into atomic, implementable features in `.ghs/features.json`. Also use to modify existing plans — add features, change priorities, or replan."
 ---
 
-# Sprint Planning
+# Feature Planning
 
 Break down requirements into atomic features with acceptance criteria, dependencies, and priorities. Update `features.json` and `progress.md`.
 
@@ -18,32 +18,32 @@ command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/resolve_project_dir.py
 
 ## Planning Process
 
-### Step 1: Archive Completed Sprints
+### Step 1: Archive Completed Plans
 
-Before creating a new sprint, check for completed sprints to archive.
+Before creating a new plan, check for completed plans to archive.
 
-**1a. List completed sprints:**
+**1a. List completed plans:**
 ```bash
-command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --list --project-dir "<PROJECT_DIR>"
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_plans.py --list --project-dir "<PROJECT_DIR>"
 ```
 
-**1b. If completed sprints exist**, offer to archive them before proceeding:
+**1b. If completed plans exist**, offer to archive them before proceeding:
 ```bash
-command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --project-dir "<PROJECT_DIR>"
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_plans.py --project-dir "<PROJECT_DIR>"
 ```
-This archives all completed sprints at once — the script determines which ones to archive based on their status.
+This archives all completed plans at once — the script determines which ones to archive based on their status.
 
 ### Step 2: Analyze Requirements
 
 Break requirements into categories:
-- **Core Features** — Essential for the sprint goal
+- **Core Features** — Essential for the plan goal
 - **Supporting Features** — Enhance core functionality
 - **Technical Enablers** — Infrastructure, refactoring
 
 Context sources:
 - User's requirements (from the command arguments or conversation)
 - Existing `.ghs/features.json`
-- Previous sprint learnings from `.ghs/progress.md`
+- Previous plan learnings from `.ghs/progress.md`
 - Current codebase state
 
 ### Step 3: Create Atomic Features
@@ -60,7 +60,7 @@ If a feature would take more than 4 hours, break it down further.
 
 ```json
 {
-  "id": "s{N}-feat-{NNN}",
+  "id": "p{N}-feat-{NNN}",
   "category": "core | ui | api | auth | data | infra",
   "priority": "high | medium | low",
   "title": "Short feature title",
@@ -74,10 +74,10 @@ If a feature would take more than 4 hours, break it down further.
 }
 ```
 
-**ID format**: `s{N}-feat-{NNN}` where N is the sprint number and NNN is zero-padded sequential (e.g., `s1-feat-001`).
-**Sprint ID format**: `s{N}` (e.g., `s1`, `s2`).
+**ID format**: `p{N}-feat-{NNN}` where N is the plan number and NNN is zero-padded sequential (e.g., `p1-feat-001`).
+**Plan ID format**: `p{N}` (e.g., `p1`, `p2`).
 
-**Priorities**: `high` = sprint blockers/core, `medium` = important but not blocking, `low` = nice to have.
+**Priorities**: `high` = plan blockers/core, `medium` = important but not blocking, `low` = nice to have.
 **Complexity**: `small` (<2h), `medium` (2-4h), `large` (4h+ — break it down).
 
 ### Step 5: Order by Dependencies
@@ -91,7 +91,7 @@ If a feature would take more than 4 hours, break it down further.
 
 **Only modify `.ghs/features.json` and `.ghs/progress.md`** — do NOT create extra planning documents.
 
-Update `.ghs/features.json` with the new sprint and its features. Set sprint status to `in_progress`.
+Update `.ghs/features.json` with the new plan and its features. Set plan status to `in_progress`.
 
 **Validate the structure** by running:
 ```bash
@@ -102,9 +102,9 @@ If validation fails, report the errors to the user and ask them to fix the issue
 Add a planning entry at the **top** of the sessions section in `.ghs/progress.md`:
 
 ```markdown
-## Sprint Planning - YYYY-MM-DD
-**Agent**: Sprint Agent
-**Sprint**: [Sprint ID and Name]
+## Feature Planning - YYYY-MM-DD
+**Agent**: To-Features Agent
+**Plan**: [Plan ID and Name]
 
 ### Requirements Received
 - [User's requirement summary]
@@ -115,7 +115,7 @@ Add a planning entry at the **top** of the sessions section in `.ghs/progress.md
 - Medium priority: N
 - Low priority: N
 
-### Sprint Goal
+### Plan Goal
 [Clear goal statement]
 
 ### Implementation Order
@@ -128,13 +128,13 @@ Add a planning entry at the **top** of the sessions section in `.ghs/progress.md
 
 ### Step 7: Display Summary and Confirm
 
-Show this summary to the user and ask for confirmation before finalizing the sprint:
+Show this summary to the user and ask for confirmation before finalizing the plan:
 
 ```markdown
-## Sprint Planning Complete
+## Feature Planning Complete
 
-### Sprint: [Name]
-**Goal**: [Sprint goal]
+### Plan: [Name]
+**Goal**: [Plan goal]
 
 ### Feature Summary
 - Total features: N
@@ -153,16 +153,16 @@ Show this summary to the user and ask for confirmation before finalizing the spr
 Run /ghs:code to start implementing the first feature: [first-feature-id]
 ```
 
-After user confirms, the sprint is ready for development. No git commit needed — `.ghs/` tracking files are local metadata (gitignored by `ghs:init`).
+After user confirms, the plan is ready for development. No git commit needed — `.ghs/` tracking files are local metadata (gitignored by `ghs:init`).
 
 ## Reference
 
-For detailed schemas, category definitions, and more examples, read `${CLAUDE_PLUGIN_ROOT}/shared/references/sprint-agent.md` and `${CLAUDE_PLUGIN_ROOT}/shared/references/examples.md`.
+For detailed schemas, category definitions, and more examples, read `${CLAUDE_PLUGIN_ROOT}/shared/references/features-agent.md` and `${CLAUDE_PLUGIN_ROOT}/shared/references/examples.md`.
 
 ## Critical Rules
 
 1. **Never Remove Features** — Only add or change status
 2. **Unique IDs** — Each feature must have a unique ID
 3. **Respect Tech Stack** — Features must be achievable with the project's tech
-4. **Balance Sprint** — Mix of complexity levels
+4. **Balance Plan** — Mix of complexity levels
 5. **Document Decisions** — Explain prioritization rationale

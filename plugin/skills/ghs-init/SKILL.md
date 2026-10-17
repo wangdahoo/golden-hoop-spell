@@ -5,7 +5,7 @@ description: "Initialize ghs project tracking by creating .ghs/features.json and
 
 # Initialize Project Tracking
 
-Set up the project with `.ghs/features.json` and `.ghs/progress.md` so the ghs system can track sprints, features, and progress across sessions. These files live inside `.ghs/` (gitignored) so they stay local.
+Set up the project with `.ghs/features.json` and `.ghs/progress.md` so the ghs system can track plans, features, and progress across sessions. These files live inside `.ghs/` (gitignored) so they stay local.
 
 ## Setup
 
@@ -16,7 +16,7 @@ command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/init_project.py "<PROJECT_N
 ```
 
 The script creates the `.ghs/` directory with:
-- **.ghs/features.json** — Sprint and feature tracking (from template at `${CLAUDE_PLUGIN_ROOT}/shared/assets/features.json`)
+- **.ghs/features.json** — Plan and feature tracking (from template at `${CLAUDE_PLUGIN_ROOT}/shared/assets/features.json`)
 - **.ghs/progress.md** — Session log (from template at `${CLAUDE_PLUGIN_ROOT}/shared/assets/progress.md`)
 - Updates **.gitignore** with `.ghs`
 
@@ -27,7 +27,7 @@ The script creates the `.ghs/` directory with:
    ls .ghs/features.json .ghs/progress.md
    ```
 
-2. Tell the user to run `/ghs:sprint` to plan their first sprint.
+2. Tell the user to run `/ghs:to-features` to plan their first plan.
 
 ## Project Directory Resolution
 

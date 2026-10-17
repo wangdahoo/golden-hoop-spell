@@ -1,6 +1,6 @@
 {
   "_schema_docs": {
-    "_description": "This section documents the features.json schema and is not used by any scripts. Scripts read only 'project', 'sprints', and 'metadata'. You may delete this section.",
+    "_description": "This section documents the features.json schema and is not used by any scripts. Scripts read only 'project', 'plans', and 'metadata'. You may delete this section.",
     "feature_optional_fields": {
       "blocked_reason": {
         "type": "string",
@@ -45,12 +45,12 @@
       }
     },
     "feature_example_blocked": {
-      "id": "s1-feat-003",
+      "id": "p1-feat-003",
       "title": "Example blocked feature",
       "description": "This feature demonstrates the blocked_reason field",
       "status": "blocked",
       "blocked_reason": "Waiting for external API credentials from the infrastructure team",
-      "dependencies": ["s1-feat-001"]
+      "dependencies": ["p1-feat-001"]
     }
   },
   "project": {
@@ -59,7 +59,7 @@
     "tech_stack": [],
     "created_at": ""
   },
-  "sprints": [],
+  "plans": [],
   "metadata": {
     "version": "1.0.0",
     "last_updated": ""

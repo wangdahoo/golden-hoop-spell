@@ -8,8 +8,8 @@ This file tracks the progress of all agent sessions. Each session should add an 
 
 ```markdown
 ## Session N - YYYY-MM-DD
-**Agent**: Sprint | Coding
-**Sprint**: [Sprint ID if applicable]
+**Agent**: To-Features | Coding
+**Plan**: [Plan ID if applicable]
 **Feature**: [Feature ID if applicable]
 
 ### Work Completed

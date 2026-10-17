@@ -1,11 +1,11 @@
 ---
 name: ghs:status
-description: "Show current project status: active sprint, feature completion stats, and recent session history."
+description: "Show current project status: active plan, feature completion stats, and recent session history."
 ---
 
 # Project Status
 
-Display the current state of the ghs managed project: active sprint, feature completion, and recent sessions.
+Display the current state of the ghs managed project: active plan, feature completion, and recent sessions.
 
 ## Usage
 
@@ -23,7 +23,7 @@ command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/status.py --project-dir "<P
 ## What It Shows
 
 - **Project info**: name, description, created date
-- **Sprint status**: active sprint name, status, goal
+- **Plan status**: active plan name, status, goal
 - **Feature breakdown**: completed / in-progress / pending / blocked counts
 - **Current work**: which feature is in-progress
 - **Next up**: which pending feature to implement next
@@ -33,4 +33,4 @@ command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/status.py --project-dir "<P
 
 If `.ghs/features.json` doesn't exist, tell the user to run `/ghs:init` to set up project tracking.
 
-If there are no sprints, suggest running `/ghs:sprint` to plan the first sprint.
+If there are no plans, suggest running `/ghs:to-features` to plan the first plan.
