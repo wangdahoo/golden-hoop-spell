@@ -588,7 +588,7 @@ command python3 -m py_compile plugin/shared/scripts/parse_delimited_output.py
 command python3 plugin/shared/scripts/test_parse_delimited_output.py 2>&1 | tail -1
 ```
 
-Expected 依次：`0`（haiku 归零）、`0`（designer QUESTION 退役；注意区分保留的"QUESTION is retired"说明句——grep 计数应来自该句，人工确认非信号用法）、`0`（SKILL.md 中 designer/reviewer 模板的 QUESTION 信号行删除）、`>0` 但全部位于 Phase 4/5 携带的旧文本内（T4 清零）、`≥1`、`≥2`、退出码 0、`OK`。
+Expected 依次：`0`（haiku 归零）、`1`（designer 仅剩 "QUESTION is retired" 说明句——裁定：简报 verbatim 文本自身含该字面量，期望值 0 与之矛盾，以 1 为准）、`2`（过渡态：designer retired 行 + 携带 reviewer Handling pre-check 文本；T4 替换携带文本后清至 1）、`>0` 但全部位于 Phase 4/5 携带的旧文本内（T4 清零）、`≥1`、`≥2`、退出码 0、`OK`。
 
 - [ ] **Step 9: Commit**
 
@@ -1606,6 +1606,8 @@ Question: "是否批准该计划？" Options: `批准（归档并物化）` / `�
 ```bash
 grep -c "MAX_BREACHES\|max_rounds_breaches\|max_rounds" plugin/skills/ghs-plan/SKILL.md
 grep -c '"rejected"' plugin/skills/ghs-plan/SKILL.md
+grep -n "Key Constraints #2" plugin/skills/ghs-plan/SKILL.md | wc -l
+grep -c "QUESTION:" plugin/skills/ghs-plan/SKILL.md
 grep -c "Unwarranted" plugin/shared/references/plan-reviewer.md
 grep -c "Builder Questions" plugin/skills/ghs-plan/SKILL.md
 grep -c "final_fix_pending" plugin/skills/ghs-plan/SKILL.md
@@ -1614,7 +1616,7 @@ grep -n "QUESTION" plugin/shared/references/plan-reviewer.md | wc -l
 command python3 plugin/shared/scripts/test_parse_delimited_output.py 2>&1 | tail -1
 ```
 
-Expected 依次：`0`、`0`、`≥6`、`≥2`、`≥2`、`≥2`、`1`（仅 "retired" 说明行）、`OK`。
+Expected 依次：`0`、`0`、`0`（携带文本中对已删 Key Constraints #2 的悬挂引用随 T4 替换清零）、`1`（仅 designer 模板的 retired 说明行）、`≥6`、`≥2`、`≥2`、`≥2`、`1`（仅 "retired" 说明行）、`OK`。
 
 - [ ] **Step 6: Commit**
 
