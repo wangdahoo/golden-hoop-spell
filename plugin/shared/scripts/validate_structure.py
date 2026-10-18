@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Any, Tuple
 
+from ghs_compat import force_utf8_stdio
+
 # ID format patterns
 PLAN_ID_PATTERN = re.compile(r"^p\d{1,4}$")
 FEATURE_ID_PATTERN = re.compile(r"^p\d{1,4}-feat-\d{3}$")
@@ -189,6 +191,8 @@ def validate_features_json(filepath: Path) -> Tuple[List[str], List[str]]:
 
 
 def main():
+    force_utf8_stdio()
+
     parser = argparse.ArgumentParser(
         description="Validate features.json structure and schema"
     )

@@ -6,23 +6,14 @@ import json
 import os
 import re
 import shutil
-import sys
 from datetime import datetime
 from pathlib import Path
+
+from ghs_compat import force_utf8_stdio
 
 # 匹配已忽略 .ghs 目录的 gitignore 规则变体:
 # .ghs / .ghs/ / /.ghs / /.ghs/ / **/.ghs / **/.ghs/
 _GHS_IGNORE_RE = re.compile(r"^(?:\*\*/)?/?\.ghs/?$")
-
-
-def _force_utf8_stdio():
-    """将 stdout/stderr 强制为 UTF-8,避免在旧式中日韩控制台编码
-    (如中文 Windows 的 cp936/GBK)下打印 ✓ 等字符时抛 UnicodeEncodeError。"""
-    for stream in (sys.stdout, sys.stderr):
-        try:
-            stream.reconfigure(encoding="utf-8", errors="replace")
-        except (AttributeError, OSError, ValueError):
-            pass  # 被替换的非标准流对象可能不支持 reconfigure
 
 
 def create_features_json(project_name: str, project_description: str, output_dir: Path):
@@ -41,7 +32,7 @@ def create_features_json(project_name: str, project_description: str, output_dir
         output_file = output_dir / ".ghs" / "features.json"
         output_file.parent.mkdir(parents=True, exist_ok=True)
         with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(features_data, f, indent=2)
+            json.dump(features_data, f, ensure_ascii=False, indent=2)
 
         return output_file
     else:
@@ -85,7 +76,7 @@ def create_progress_md(output_dir: Path):
 
 
 def main():
-    _force_utf8_stdio()
+    force_utf8_stdio()
 
     parser = argparse.ArgumentParser(
         description="Initialize ghs tracking files"
@@ -147,15 +138,15 @@ def main():
             args.project_name, project_description, output_dir
         )
         created.append(features_file)
-        print(f"✓ Created {features_file.name}")
+        print(f"✅ Created {features_file.name}")
 
         progress_file = create_progress_md(output_dir)
         created.append(progress_file)
-        print(f"✓ Created {progress_file.name}")
+        print(f"✅ Created {progress_file.name}")
 
         gitignore_file, updated = ensure_gitignore(output_dir)
         if updated:
-            print(f"✓ Updated {gitignore_file.name} (added .ghs)")
+            print(f"✅ Updated {gitignore_file.name} (added .ghs)")
         else:
             print(f"  {gitignore_file.name} already contains .ghs")
 

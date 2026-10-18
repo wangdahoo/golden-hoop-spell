@@ -98,5 +98,19 @@ class PartialInitCleanupTests(unittest.TestCase):
             )
 
 
+class JsonLiteralEncodingTests(unittest.TestCase):
+    def test_chinese_description_stored_as_literal_characters(self):
+        """Non-ASCII description must be stored as characters, not \\uXXXX escapes."""
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out, err = run_cli(
+                ["proj", "--description", "中文描述：自举测试", "--project-dir", tmp],
+                env_extra={"PYTHONIOENCODING": "utf-8"},
+            )
+            self.assertEqual(rc, 0, f"stdout={out!r}\nstderr={err!r}")
+            text = (Path(tmp) / ".ghs" / "features.json").read_text(encoding="utf-8")
+            self.assertIn("中文描述：自举测试", text)
+            self.assertNotIn("\\u", text, "non-ASCII must not be escaped as \\uXXXX")
+
+
 if __name__ == "__main__":
     unittest.main()
