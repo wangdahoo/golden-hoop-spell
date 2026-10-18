@@ -1,10 +1,145 @@
-node_modules/
+# ============================================================
+# 操作系统(Windows / macOS)
+# ============================================================
+
+# —— Windows ——
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# —— macOS ——
 .DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# ============================================================
+# 编辑器 / IDE —— VS Code
+# (忽略个人配置,保留可共享的推荐扩展与调试配置)
+# ============================================================
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+.history/
+
+# ============================================================
+# Node.js / TypeScript
+# ============================================================
+
+# 依赖
+node_modules/
+
+# 日志与运行时数据
+logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+pids/
+*.pid
+*.seed
+*.pid.lock
+.node_repl_history
+
+# 构建产物(含 TypeScript 编译输出)
+dist/
+dist-ssr/
+build/
+out/
+*.tsbuildinfo
+
+# 测试覆盖率
+coverage/
+*.lcov
+.nyc_output/
+
+# 工具缓存
+.npm/
+.eslintcache
+.stylelintcache
+*.tgz
+
+# 包管理器本地状态(Yarn Berry / pnpm)
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+# 注意:package-lock.json / yarn.lock / pnpm-lock.yaml 应当提交,勿加入忽略
+
+# ============================================================
+# Python
+# ============================================================
+
+# 字节码 / 缓存
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints
+
+# 虚拟环境
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+
+# 打包 / 分发产物
+*.egg-info/
+.eggs/
+*.egg
+pip-wheel-metadata/
+
+# 测试 / 类型检查 / 覆盖率
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+
+# ============================================================
+# 环境变量
+# ============================================================
 .env
 .env.*
+!.env.example
+
+# ============================================================
+# 项目专属(ghs 工具链与本地状态)
+# ============================================================
+.ghs/
+.codegraph/
+.superpowers/
+.claude/settings.local.json
 ghs-workspace/*
 !ghs-workspace/CLAUDE.md
-.ghs
-__pycache__/
-.codegraph/
