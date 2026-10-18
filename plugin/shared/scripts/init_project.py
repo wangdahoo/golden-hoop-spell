@@ -4,9 +4,16 @@
 import argparse
 import json
 import os
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
+
+from ghs_compat import force_utf8_stdio
+
+# 匹配已忽略 .ghs 目录的 gitignore 规则变体:
+# .ghs / .ghs/ / /.ghs / /.ghs/ / **/.ghs / **/.ghs/
+_GHS_IGNORE_RE = re.compile(r"^(?:\*\*/)?/?\.ghs/?$")
 
 
 def create_features_json(project_name: str, project_description: str, output_dir: Path):
@@ -25,7 +32,7 @@ def create_features_json(project_name: str, project_description: str, output_dir
         output_file = output_dir / ".ghs" / "features.json"
         output_file.parent.mkdir(parents=True, exist_ok=True)
         with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(features_data, f, indent=2)
+            json.dump(features_data, f, ensure_ascii=False, indent=2)
 
         return output_file
     else:
@@ -41,7 +48,7 @@ def ensure_gitignore(output_dir: Path):
         with open(gitignore_path, "r", encoding="utf-8") as f:
             content = f.read()
         lines = [line.strip() for line in content.splitlines()]
-        if entry in lines:
+        if any(_GHS_IGNORE_RE.match(line) for line in lines):
             return gitignore_path, False
         with open(gitignore_path, "a", encoding="utf-8") as f:
             if content and not content.endswith("\n"):
@@ -69,6 +76,8 @@ def create_progress_md(output_dir: Path):
 
 
 def main():
+    force_utf8_stdio()
+
     parser = argparse.ArgumentParser(
         description="Initialize ghs tracking files"
     )
@@ -123,18 +132,21 @@ def main():
     print(f"Output: {output_dir}")
     print()
 
+    created = []
     try:
         features_file = create_features_json(
             args.project_name, project_description, output_dir
         )
-        print(f"✓ Created {features_file.name}")
+        created.append(features_file)
+        print(f"✅ Created {features_file.name}")
 
         progress_file = create_progress_md(output_dir)
-        print(f"✓ Created {progress_file.name}")
+        created.append(progress_file)
+        print(f"✅ Created {progress_file.name}")
 
         gitignore_file, updated = ensure_gitignore(output_dir)
         if updated:
-            print(f"✓ Updated {gitignore_file.name} (added .ghs)")
+            print(f"✅ Updated {gitignore_file.name} (added .ghs)")
         else:
             print(f"  {gitignore_file.name} already contains .ghs")
 
@@ -142,6 +154,12 @@ def main():
         print("Next: Run /ghs:to-features to define features.")
 
     except Exception as e:
+        # 回滚本次运行已创建的 .ghs 文件,避免留下强制下次 --force 的半初始化状态
+        for path in created:
+            try:
+                path.unlink()
+            except OSError:
+                pass
         print(f"Error: {e}")
         return 1
 

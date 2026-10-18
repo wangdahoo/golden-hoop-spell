@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Set, Tuple
 
+from ghs_compat import force_utf8_stdio
+
 
 def read_features_json(filepath: Path) -> Optional[Dict]:
     """Read and parse features.json."""
@@ -241,6 +243,7 @@ def main():
         default=None,
         help="Plan ID to analyze (default: first active plan)",
     )
+    force_utf8_stdio()
     args = parser.parse_args()
 
     project_dir = Path(args.project_dir).resolve()
@@ -258,6 +261,7 @@ def main():
             },
             sys.stdout,
             indent=2,
+            ensure_ascii=False,
         )
         sys.stdout.write("\n")
         return 1
@@ -276,6 +280,7 @@ def main():
             },
             sys.stdout,
             indent=2,
+            ensure_ascii=False,
         )
         sys.stdout.write("\n")
         return 1
@@ -292,6 +297,7 @@ def main():
             },
             sys.stdout,
             indent=2,
+            ensure_ascii=False,
         )
         sys.stdout.write("\n")
         return 1
@@ -322,7 +328,7 @@ def main():
         "cycle_feature_ids": cycle_feature_ids,
     }
 
-    json.dump(output, sys.stdout, indent=2)
+    json.dump(output, sys.stdout, ensure_ascii=False, indent=2)
     sys.stdout.write("\n")
     return 0
 

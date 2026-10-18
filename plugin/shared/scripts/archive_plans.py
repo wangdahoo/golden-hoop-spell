@@ -10,6 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from ghs_compat import force_utf8_stdio
+
 
 ARCHIVED_DIR = ".ghs/archived"
 GHS_DIR = ".ghs"
@@ -70,7 +72,7 @@ def archive_plan_files(
     }
 
     with open(archive_features, "w", encoding="utf-8") as f:
-        json.dump(archived_plan_data, f, indent=2)
+        json.dump(archived_plan_data, f, ensure_ascii=False, indent=2)
 
     progress_path = project_dir / GHS_DIR / "progress.md"
     if progress_path.exists():
@@ -258,7 +260,7 @@ def archive_completed_plans(
 
     if not dry_run and archived_info:
         with open(features_path, "w", encoding="utf-8") as f:
-            json.dump(features_data, f, indent=2)
+            json.dump(features_data, f, ensure_ascii=False, indent=2)
         print(
             f"\nUpdated features.json - removed {len(archived_info)} archived plan(s)"
         )
@@ -281,6 +283,8 @@ def archive_completed_plans(
 
 
 def main():
+    force_utf8_stdio()
+
     parser = argparse.ArgumentParser(
         description="Archive completed plan files to .ghs/archived"
     )
