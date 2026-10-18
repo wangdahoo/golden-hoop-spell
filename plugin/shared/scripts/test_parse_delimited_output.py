@@ -442,6 +442,37 @@ class ParseHelperVerdictTests(unittest.TestCase):
         self.assertEqual(result["status"], "ok")
         self.assertIsNone(result["verdict"])
 
+    # ------------------------------------------------------------------
+    # Unwarranted count extraction (review kind only)
+    # ------------------------------------------------------------------
+    def test_unwarranted_count_review(self):
+        raw = (f"<<<REVIEW_START>>>\n{LONG_BODY}\n<<<REVIEW_END>>>\n"
+               "REVIEW COMPLETE | Verdict: FAIL | Unwarranted: 2 Severe: 0 Medium: 1 Optimization: 0\n")
+        result = helper.parse_raw(
+            raw, kind="review",
+            start_token="<<<REVIEW_START>>>", end_token="<<<REVIEW_END>>>",
+            min_length=150, completion_signal="REVIEW COMPLETE",
+        )
+        self.assertEqual(result["unwarranted"], 2)
+
+    def test_unwarranted_absent_is_none(self):
+        raw = f"<<<REVIEW_START>>>\n{LONG_BODY}\n<<<REVIEW_END>>>\nREVIEW COMPLETE | Verdict: PASS | Severe: 0 Medium: 0 Optimization: 0\n"
+        result = helper.parse_raw(
+            raw, kind="review",
+            start_token="<<<REVIEW_START>>>", end_token="<<<REVIEW_END>>>",
+            min_length=150, completion_signal="REVIEW COMPLETE",
+        )
+        self.assertIsNone(result["unwarranted"])
+
+    def test_unwarranted_ignored_for_plan_kind(self):
+        raw = f"<<<PLAN_START>>>\nUnwarranted: 9\n{LONG_BODY}\n<<<PLAN_END>>>\n"
+        result = helper.parse_raw(
+            raw, kind="plan",
+            start_token="<<<PLAN_START>>>", end_token="<<<PLAN_END>>>",
+            min_length=200, completion_signal=None,
+        )
+        self.assertIsNone(result["unwarranted"])
+
 
 class ParseHelperCompletionSignalTests(unittest.TestCase):
     # ------------------------------------------------------------------

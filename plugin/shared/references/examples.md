@@ -2,7 +2,7 @@
 
 This file contains realistic, fully-populated examples for reference.
 
-## Example 1: Authentication Sprint (features.json)
+## Example 1: Authentication Plan (features.json)
 
 ```json
 {
@@ -12,16 +12,16 @@ This file contains realistic, fully-populated examples for reference.
     "tech_stack": ["react", "node.js", "postgresql", "typescript"],
     "created_at": "2024-01-15"
   },
-  "sprints": [
+  "plans": [
     {
-      "id": "s1",
-      "name": "Authentication Sprint",
+      "id": "p1",
+      "name": "Authentication Plan",
       "goal": "Implement complete user authentication with email/password and social login",
       "status": "in_progress",
       "created_at": "2024-01-15",
       "features": [
         {
-          "id": "s1-feat-001",
+          "id": "p1-feat-001",
           "category": "infra",
           "priority": "high",
           "title": "Setup authentication provider",
@@ -44,7 +44,7 @@ This file contains realistic, fully-populated examples for reference.
           ]
         },
         {
-          "id": "s1-feat-002",
+          "id": "p1-feat-002",
           "category": "ui",
           "priority": "high",
           "title": "Create login page",
@@ -59,7 +59,7 @@ This file contains realistic, fully-populated examples for reference.
           ],
           "technical_notes": "Use React Hook Form for validation. Follow design system in Figma. Include accessibility attributes (aria-labels). Test on Chrome, Firefox, Safari",
           "status": "in_progress",
-          "dependencies": ["s1-feat-001"],
+          "dependencies": ["p1-feat-001"],
           "estimated_complexity": "medium",
           "files_affected": [
             "src/components/LoginForm.tsx",
@@ -68,7 +68,7 @@ This file contains realistic, fully-populated examples for reference.
           ]
         },
         {
-          "id": "s1-feat-003",
+          "id": "p1-feat-003",
           "category": "api",
           "priority": "high",
           "title": "Implement login API endpoint",
@@ -83,7 +83,7 @@ This file contains realistic, fully-populated examples for reference.
           ],
           "technical_notes": "Use bcrypt.compare for password validation. Generate JWT with jsonwebtoken library. Add rate limiting middleware (express-rate-limit)",
           "status": "pending",
-          "dependencies": ["s1-feat-001"],
+          "dependencies": ["p1-feat-001"],
           "estimated_complexity": "medium",
           "files_affected": [
             "src/api/auth/login.ts",
@@ -92,7 +92,7 @@ This file contains realistic, fully-populated examples for reference.
           ]
         },
         {
-          "id": "s1-feat-004",
+          "id": "p1-feat-004",
           "category": "core",
           "priority": "high",
           "title": "Connect login form to API",
@@ -107,7 +107,7 @@ This file contains realistic, fully-populated examples for reference.
           ],
           "technical_notes": "Use fetch API or axios. Store token in HTTP-only cookie for security (not localStorage). Use React Context for auth state",
           "status": "pending",
-          "dependencies": ["s1-feat-002", "s1-feat-003"],
+          "dependencies": ["p1-feat-002", "p1-feat-003"],
           "estimated_complexity": "medium",
           "files_affected": [
             "src/hooks/useAuth.ts",
@@ -116,7 +116,7 @@ This file contains realistic, fully-populated examples for reference.
           ]
         },
         {
-          "id": "s1-feat-005",
+          "id": "p1-feat-005",
           "category": "data",
           "priority": "high",
           "title": "Create user database schema",
@@ -139,7 +139,7 @@ This file contains realistic, fully-populated examples for reference.
           ]
         },
         {
-          "id": "s1-feat-006",
+          "id": "p1-feat-006",
           "category": "ui",
           "priority": "medium",
           "title": "Create registration page",
@@ -154,7 +154,7 @@ This file contains realistic, fully-populated examples for reference.
           ],
           "technical_notes": "Reuse validation patterns from LoginForm. Use zxcvbn for password strength. Debounce email uniqueness check to avoid excessive API calls",
           "status": "pending",
-          "dependencies": ["s1-feat-001", "s1-feat-005"],
+          "dependencies": ["p1-feat-001", "p1-feat-005"],
           "estimated_complexity": "medium",
           "files_affected": [
             "src/components/RegisterForm.tsx",
@@ -172,12 +172,12 @@ This file contains realistic, fully-populated examples for reference.
 }
 ```
 
-## Example 2: Sprint Planning Session (progress.md)
+## Example 2: Feature Planning Session (progress.md)
 
 ```markdown
-## Sprint Planning - 2024-01-15
-**Agent**: Sprint Agent
-**Sprint**: s1 - Authentication Sprint
+## Feature Planning - 2024-01-15
+**Agent**: To-Features Agent
+**Plan**: p1 - Authentication Plan
 
 ### Requirements Received
 - User authentication with email/password
@@ -193,16 +193,16 @@ This file contains realistic, fully-populated examples for reference.
 - Medium priority: 1 (registration enhancement)
 - Low priority: 0
 
-### Sprint Goal
+### Plan Goal
 Implement complete user authentication flow including social login, email verification, and secure token management. Users should be able to register, login, and logout securely.
 
 ### Implementation Order
-1. s1-feat-001 - Setup auth provider (infra) - COMPLETED
-2. s1-feat-005 - Create user database schema (data) - COMPLETED
-3. s1-feat-002 - Create login page (ui) - IN PROGRESS
-4. s1-feat-003 - Implement login API endpoint (api) - PENDING
-5. s1-feat-004 - Connect login form to API (core) - PENDING
-6. s1-feat-006 - Create registration page (ui) - PENDING
+1. p1-feat-001 - Setup auth provider (infra) - COMPLETED
+2. p1-feat-005 - Create user database schema (data) - COMPLETED
+3. p1-feat-002 - Create login page (ui) - IN PROGRESS
+4. p1-feat-003 - Implement login API endpoint (api) - PENDING
+5. p1-feat-004 - Connect login form to API (core) - PENDING
+6. p1-feat-006 - Create registration page (ui) - PENDING
 
 ### Technical Decisions
 - Chose Auth0 over custom JWT for faster initial implementation
@@ -211,8 +211,8 @@ Implement complete user authentication flow including social login, email verifi
 - Rate limiting at 5 attempts per minute for login
 
 ### Notes
-- Password reset functionality deferred to Sprint 2
-- Social login buttons in UI but implementation in Sprint 3
+- Password reset functionality deferred to Plan 2
+- Social login buttons in UI but implementation in Plan 3
 - Need to coordinate with design team on login page mockups
 ```
 
@@ -221,8 +221,8 @@ Implement complete user authentication flow including social login, email verifi
 ```markdown
 ## Session 2 - 2024-01-16
 **Agent**: Coding Agent
-**Sprint**: s1
-**Feature**: s1-feat-002 - Create login page
+**Plan**: p1
+**Feature**: p1-feat-002 - Create login page
 
 ### Implementation
 - Created LoginForm component with email and password fields
@@ -261,39 +261,39 @@ Implement complete user authentication flow including social login, email verifi
 - [x] Loading state shown during authentication (component ready)
 
 ### Next Steps
-- Ready for s1-feat-003: Implement login API endpoint
-- After API is ready, s1-feat-004 will connect form to API
+- Ready for p1-feat-003: Implement login API endpoint
+- After API is ready, p1-feat-004 will connect form to API
 ```
 
 ## Example 4: Archive Directory Structure
 
-After archiving completed sprint:
+After archiving a completed plan:
 
 ```
 project-root/
 ├── .ghs/
-│   ├── features.json          (s1 removed, only s2 remains)
+│   ├── features.json          (p1 removed, only p2 remains)
 │   ├── progress.md            (updated with archive entry)
 │   └── archived/
-│       └── s1_authentication_sprint_20240120_143000/
-│           ├── features.json    (complete s1 data)
-│           └── progress.md      (all s1 sessions)
+│       └── p1_authentication_plan_20240120_143000/
+│           ├── features.json    (complete p1 data)
+│           └── progress.md      (all p1 sessions)
 ```
 
 ## Usage Patterns
 
-### Sprint Agent Workflow
+### To-Features Agent Workflow
 
-1. Read this file and [sprint-agent.md](sprint-agent.md)
-2. Archive completed sprints (if any)
+1. Read this file and [features-agent.md](features-agent.md)
+2. Archive completed plans (if any)
 3. Analyze user requirements
-4. Create features following the authentication sprint example
+4. Create features following the authentication plan example
 5. Update `.ghs/features.json` and `.ghs/progress.md`
 
 ### Coding Agent Workflow
 
 1. Read this file and [coding-agent.md](coding-agent.md)
-2. Select ONE feature from current sprint
+2. Select ONE feature from current plan
 3. Implement following the coding session example
 4. Test thoroughly using checklist
 5. Update `.ghs/progress.md` and `.ghs/features.json`

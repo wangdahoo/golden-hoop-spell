@@ -4,17 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A skill suite that keeps Claude on a leash — iterative planning, structured sprints, and disciplined code delivery. Skills form a pipeline: `init` sets up tracking, `plan` generates technical designs through iterative review, `sprint` breaks work into features, `code` implements them, and `status`/`archive` track and close out progress.
+A skill suite that keeps Claude on a leash — iterative planning, feature breakdown, and disciplined code delivery. Skills form a pipeline: `init` sets up tracking, `plan` generates technical designs through iterative review, `code` implements them, and `status`/`archive` track and close out progress. `to-features` turns plans into features as an alternative entry point.
 
 Plugin runtime content (skills, scripts, references, assets) lives under `./plugin/`; the repository root holds development meta (`docs/`, `ghs-workspace/`, READMEs). The root `CLAUDE.md` is intentionally NOT duplicated into `./plugin/` — per the official Claude Code docs, a plugin-root `CLAUDE.md` is not loaded as project context (plugins contribute context through skills, agents, and hooks).
 
 ## Architecture
 
-Each skill is a self-contained directory under `plugin/skills/` with a `SKILL.md` that defines behavior. Skills delegate deterministic operations to Python scripts in `plugin/shared/scripts/` and reference detailed workflows in `plugin/shared/references/`. All tracking state lives in the target project's `.ghs/` directory (gitignored), using `features.json` for sprint/feature tracking and `progress.md` for session logs.
+Each skill is a self-contained directory under `plugin/skills/` with a `SKILL.md` that defines behavior. Skills delegate deterministic operations to Python scripts in `plugin/shared/scripts/` and reference detailed workflows in `plugin/shared/references/`. All tracking state lives in the target project's `.ghs/` directory (gitignored), using `features.json` for plan/feature tracking and `progress.md` for session logs.
 
 The typical skill workflow: resolve project directory via `resolve_project_dir.py` → read `.ghs/` state → perform task → update `.ghs/` state.
 
-`ghs:plan` uses a three-role architecture: a dispatcher (main conversation) orchestrates a plan designer (Plan subagent) and a plan reviewer (general-purpose subagent) through up to 5 review-revise rounds, communicating via files under `.ghs/plans/`.
+`ghs:plan` uses a three-role architecture: a dispatcher (main conversation) orchestrates a plan designer (Plan subagent) and a plan reviewer (general-purpose subagent) under a hard review cap — one full review plus at most one targeted revision, one targeted re-review, and one final revision (4 model calls) — communicating via files under `.ghs/plans/`.
 
 ## Notes
 
@@ -24,7 +24,7 @@ Historical plan documents under `docs/ghs/plans/` reference the pre-move `skills
 
 - Skill names use `ghs:` prefix; directories use kebab-case (e.g., `ghs-init/`)
 - Skills reference shared resources via `${CLAUDE_PLUGIN_ROOT}/shared/`
-- Feature IDs follow `s{N}-feat-{NNN}` format
+- Feature IDs follow `p{N}-feat-{NNN}` format
 - Commit messages use conventional format: `<type>(<scope>): <description>`
 - Each session logs to `.ghs/progress.md` at the top of the sessions section
 - **Python invocations use `command python3`, not bare `python3`**: Claude Code's shell snapshot systematically drops single-underscore zsh functions (`_xxx`), which breaks pyenv/nvm lazy loaders — bare `python3` resolves to a dangling wrapper that exits 127 with `_lazy_pyenv command not found`. `command python3` bypasses shell function lookup and resolves via PATH. This applies to all SKILL.md / reference doc / docstring examples that invoke a Python script.

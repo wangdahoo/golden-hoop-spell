@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Dict, List, Any, Tuple
 
 # ID format patterns
-SPRINT_ID_PATTERN = re.compile(r"^s\d{1,4}$")
-FEATURE_ID_PATTERN = re.compile(r"^s\d{1,4}-feat-\d{3}$")
+PLAN_ID_PATTERN = re.compile(r"^p\d{1,4}$")
+FEATURE_ID_PATTERN = re.compile(r"^p\d{1,4}-feat-\d{3}$")
 
 
 def validate_project_section(data: Dict) -> List[str]:
@@ -26,48 +26,48 @@ def validate_project_section(data: Dict) -> List[str]:
     return errors
 
 
-def validate_sprint_id_format(sprint_id: str, sprint_idx: int) -> List[str]:
-    """Validate sprint ID matches the required format ^s\\d{1,4}$."""
+def validate_plan_id_format(plan_id: str, plan_idx: int) -> List[str]:
+    """Validate plan ID matches the required format ^p\\d{1,4}$."""
     errors = []
-    if not SPRINT_ID_PATTERN.match(sprint_id):
+    if not PLAN_ID_PATTERN.match(plan_id):
         errors.append(
-            f"Sprint {sprint_idx}: invalid sprint ID format '{sprint_id}' "
-            f"(must match ^s\\d{{1,4}}$, e.g. s1, s12, s1234)"
+            f"Plan {plan_idx}: invalid plan ID format '{plan_id}' "
+            f"(must match ^p\\d{{1,4}}$, e.g. p1, p12, p1234)"
         )
     return errors
 
 
 def validate_feature_id_format(feature_id: str, feature_idx: int) -> List[str]:
-    """Validate feature ID matches the required format ^s\\d{1,4}-feat-\\d{3}$."""
+    """Validate feature ID matches the required format ^p\\d{1,4}-feat-\\d{3}$."""
     errors = []
     if not FEATURE_ID_PATTERN.match(feature_id):
         errors.append(
             f"Feature {feature_idx}: invalid feature ID format '{feature_id}' "
-            f"(must match ^s\\d{{1,4}}-feat-\\d{{3}}$, e.g. s1-feat-001)"
+            f"(must match ^p\\d{{1,4}}-feat-\\d{{3}}$, e.g. p1-feat-001)"
         )
     return errors
 
 
 def validate_feature_prefix_consistency(
-    feature_id: str, sprint_id: str, feature_idx: int
+    feature_id: str, plan_id: str, feature_idx: int
 ) -> List[str]:
-    """Validate that the sprint number prefix in feature ID matches parent sprint ID."""
+    """Validate that the plan number prefix in feature ID matches parent plan ID."""
     errors = []
-    sprint_match = SPRINT_ID_PATTERN.match(sprint_id)
+    plan_match = PLAN_ID_PATTERN.match(plan_id)
     feature_match = FEATURE_ID_PATTERN.match(feature_id)
-    if sprint_match and feature_match:
-        sprint_num = sprint_id[1:]  # strip leading 's'
+    if plan_match and feature_match:
+        plan_num = plan_id[1:]  # strip leading 'p'
         feature_prefix = feature_id.split("-feat-")[0][1:]  # get number before '-feat-'
-        if sprint_num != feature_prefix:
+        if plan_num != feature_prefix:
             errors.append(
                 f"Feature {feature_idx}: feature ID '{feature_id}' prefix "
-                f"does not match parent sprint '{sprint_id}' "
-                f"(sprint number {sprint_num} vs feature prefix {feature_prefix})"
+                f"does not match parent plan '{plan_id}' "
+                f"(plan number {plan_num} vs feature prefix {feature_prefix})"
             )
     return errors
 
 
-def validate_feature(feature: Dict, feature_idx: int, sprint_id: str = "") -> Tuple[List[str], List[str]]:
+def validate_feature(feature: Dict, feature_idx: int, plan_id: str = "") -> Tuple[List[str], List[str]]:
     """Validate a single feature.
 
     Returns a tuple of (errors, warnings).
@@ -85,10 +85,10 @@ def validate_feature(feature: Dict, feature_idx: int, sprint_id: str = "") -> Tu
     if feature_id:
         errors.extend(validate_feature_id_format(feature_id, feature_idx))
 
-    # Feature ID prefix consistency with parent sprint
-    if feature_id and sprint_id:
+    # Feature ID prefix consistency with parent plan
+    if feature_id and plan_id:
         errors.extend(
-            validate_feature_prefix_consistency(feature_id, sprint_id, feature_idx)
+            validate_feature_prefix_consistency(feature_id, plan_id, feature_idx)
         )
 
     valid_statuses = ["pending", "in_progress", "completed", "blocked"]
@@ -116,8 +116,8 @@ def validate_feature(feature: Dict, feature_idx: int, sprint_id: str = "") -> Tu
     return errors, warnings
 
 
-def validate_sprint(sprint: Dict, sprint_idx: int) -> Tuple[List[str], List[str]]:
-    """Validate a single sprint.
+def validate_plan(plan: Dict, plan_idx: int) -> Tuple[List[str], List[str]]:
+    """Validate a single plan.
 
     Returns a tuple of (errors, warnings).
     """
@@ -126,25 +126,25 @@ def validate_sprint(sprint: Dict, sprint_idx: int) -> Tuple[List[str], List[str]
 
     required_fields = ["id", "name", "status"]
     for field in required_fields:
-        if field not in sprint:
-            errors.append(f"Sprint {sprint_idx}: missing '{field}'")
+        if field not in plan:
+            errors.append(f"Plan {plan_idx}: missing '{field}'")
 
-    # Sprint ID format validation
-    sprint_id = sprint.get("id", "")
-    if sprint_id:
-        errors.extend(validate_sprint_id_format(sprint_id, sprint_idx))
+    # Plan ID format validation
+    plan_id = plan.get("id", "")
+    if plan_id:
+        errors.extend(validate_plan_id_format(plan_id, plan_idx))
 
     valid_statuses = ["planning", "in_progress", "completed", "on_hold"]
-    status = sprint.get("status", "")
+    status = plan.get("status", "")
     if status and status not in valid_statuses:
-        errors.append(f"Sprint {sprint_idx}: invalid status '{status}'")
+        errors.append(f"Plan {plan_idx}: invalid status '{status}'")
 
-    features = sprint.get("features", [])
+    features = plan.get("features", [])
     if not isinstance(features, list):
-        errors.append(f"Sprint {sprint_idx}: 'features' must be an array")
+        errors.append(f"Plan {plan_idx}: 'features' must be an array")
     else:
         for idx, feature in enumerate(features):
-            feat_errors, feat_warnings = validate_feature(feature, idx, sprint_id)
+            feat_errors, feat_warnings = validate_feature(feature, idx, plan_id)
             errors.extend(feat_errors)
             warnings.extend(feat_warnings)
 
@@ -168,16 +168,22 @@ def validate_features_json(filepath: Path) -> Tuple[List[str], List[str]]:
     except json.JSONDecodeError as e:
         return [f"Invalid JSON: {e}"], []
 
+    if isinstance(data, dict) and "sprints" in data and "plans" not in data:
+        errors.append(
+            "old format detected (key 'sprints') — re-run /ghs:init to regenerate "
+            ".ghs/features.json with the current schema"
+        )
+
     errors.extend(validate_project_section(data))
 
-    sprints = data.get("sprints", [])
-    if not isinstance(sprints, list):
-        errors.append("'sprints' must be an array")
+    plans = data.get("plans", [])
+    if not isinstance(plans, list):
+        errors.append("'plans' must be an array")
     else:
-        for idx, sprint in enumerate(sprints):
-            sprint_errors, sprint_warnings = validate_sprint(sprint, idx)
-            errors.extend(sprint_errors)
-            warnings.extend(sprint_warnings)
+        for idx, plan in enumerate(plans):
+            plan_errors, plan_warnings = validate_plan(plan, idx)
+            errors.extend(plan_errors)
+            warnings.extend(plan_warnings)
 
     return errors, warnings
 

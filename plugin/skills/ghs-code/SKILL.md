@@ -1,16 +1,16 @@
 ---
 name: ghs:code
-description: "Implement features from the current sprint plan. Supports single-feature mode (default, one feature per session) and parallel mode (--parallel for independent features). This is the primary development workflow for ghs-managed projects."
+description: "Implement features from the current plan. Supports single-feature mode (default, one feature per session) and parallel mode (--parallel for independent features). This is the primary development workflow for ghs-managed projects."
 argument-hint: "[--parallel] [--max-parallel=N]"
 ---
 
 # Feature Implementation
 
-Implement features from the current sprint. Two modes: **single feature** (default) and **parallel** (multiple features at once via `--parallel`).
+Implement features from the current plan. Two modes: **single feature** (default) and **parallel** (multiple features at once via `--parallel`).
 
 ## Prerequisites
 
-The project must have an active sprint with pending features. If not, tell the user to run `/ghs:sprint` first.
+The project must have an active plan with pending features. If not, tell the user to run `/ghs:to-features` first.
 
 ## Session Protocol
 
@@ -34,7 +34,7 @@ The project must have an active sprint with pending features. If not, tell the u
    ```
    If validation fails, report errors and stop. Fix issues before proceeding.
 
-4. **Review feature status**: Read `.ghs/features.json` to see current sprint, completed/in-progress/pending features, and dependencies.
+4. **Review feature status**: Read `.ghs/features.json` to see current plan, completed/in-progress/pending features, and dependencies.
 
 5. **Verify project state**: Run lint and build commands. If broken, **fix existing issues before starting new work**.
 
@@ -45,7 +45,7 @@ The project must have an active sprint with pending features. If not, tell the u
 ### Step 1: Select Feature
 
 Choose **ONE** feature per session. Prioritize:
-1. Features from current in-progress sprint
+1. Features from current in-progress plan
 2. High-priority pending features with completed dependencies
 3. Features that build on recent work
 
@@ -93,7 +93,7 @@ Check all acceptance criteria:
 ```markdown
 ## Session N - YYYY-MM-DD
 **Agent**: Coding Agent
-**Sprint**: [Sprint ID]
+**Plan**: [Plan ID]
 **Feature**: [Feature ID and title]
 
 ### Implementation
@@ -126,7 +126,7 @@ When invoked with `--parallel`, implement multiple independent features concurre
 ### Pre-flight Checks
 
 1. Resolve project directory (same as above)
-2. Check for an uncompleted sprint with pending features. If none, exit with: "No uncompleted sprint found. Run `/ghs:sprint` first."
+2. Check for an uncompleted plan with pending features. If none, exit with: "No uncompleted plan found. Run `/ghs:to-features` first."
 3. Verify clean working tree (`git status`). If uncommitted changes exist, exit with: "Working tree has uncommitted changes. Please commit or stash first."
 
 ### Analysis Phase
@@ -152,8 +152,8 @@ Implement ONE feature for this project.
 This is an isolated task. Disregard prior context, assume nothing, read files fresh, start clean.
 
 ## Your Task
-1. Open `<PROJECT_DIR>/.ghs/features.json`, find your feature by `id == "<feature_id>"` under `sprints[].features[]`. Read its `description`/`acceptance_criteria`/`technical_notes`/`files_affected` — these are your source of truth, not the title.
-2. If the containing sprint has a `plan_ref` field, open that plan file (relative to project root) and read any sections your `technical_notes` references (e.g. "参考 plan §3.3 ..." means read §3.3). If `plan_ref` is missing or the file does not exist, log a one-line warning and proceed with `technical_notes` verbatim.
+1. Open `<PROJECT_DIR>/.ghs/features.json`, find your feature by `id == "<feature_id>"` under `plans[].features[]`. Read its `description`/`acceptance_criteria`/`technical_notes`/`files_affected` — these are your source of truth, not the title.
+2. If the containing plan has a `plan_ref` field, open that plan file (relative to project root) and read any sections your `technical_notes` references (e.g. "参考 plan §3.3 ..." means read §3.3). If `plan_ref` is missing or the file does not exist, log a one-line warning and proceed with `technical_notes` verbatim.
 3. Read `<PROJECT_DIR>/.ghs/progress.md` for recent project context.
 4. Implement the feature and verify all `acceptance_criteria` are met.
 5. Run lint/build, then make a **single** commit (stage all modified implementation files with `git add`; do NOT commit `.ghs/*` files) with message: `feat(<scope>): <brief description> (Feature: <feature_id>)`.
@@ -167,7 +167,7 @@ This is an isolated task. Disregard prior context, assume nothing, read files fr
 - End with EXACTLY ONE signal: `FEATURE COMPLETE: <feature_id>` or `FEATURE BLOCKED: <feature_id> - <reason>`.
 ```
 
-The orchestrator MUST substitute `<PROJECT_DIR>` (from `resolve_project_dir.py`) and `<feature_id>` (from the batch feature list) into the prompt before spawning. The prompt contains NO inline feature details — the subagent reads them from `.ghs/features.json` per Task step 1. Note: the prompt does NOT contain a `<sprint_id>` placeholder — the subagent locates its feature by `id == "<feature_id>"` across `sprints[].features[]`, so the orchestrator does not need to pass `sprint_id`.
+The orchestrator MUST substitute `<PROJECT_DIR>` (from `resolve_project_dir.py`) and `<feature_id>` (from the batch feature list) into the prompt before spawning. The prompt contains NO inline feature details — the subagent reads them from `.ghs/features.json` per Task step 1. Note: the prompt does NOT contain a `<plan_id>` placeholder — the subagent locates its feature by `id == "<feature_id>"` across `plans[].features[]`, so the orchestrator does not need to pass `plan_id`.
 
 Spawn as background agents:
 ```json
@@ -185,7 +185,7 @@ For each background subagent that returns:
 
 1. Capture the raw output (via TaskOutput or equivalent) and save it to disk for post-mortem debugging:
    ```
-   <PROJECT_DIR>/.ghs/parallel/<sprint_id>/<feature_id>.raw.attempt<N>
+   <PROJECT_DIR>/.ghs/parallel/<plan_id>/<feature_id>.raw.attempt<N>
    ```
    `attempt<N>` starts at 1 for the first try within a feature; retries increment N.
 
@@ -196,7 +196,7 @@ For each background subagent that returns:
    ```bash
    command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_completion_signal.py \
      --feature-id <feature_id> \
-     --input-file <PROJECT_DIR>/.ghs/parallel/<sprint_id>/<feature_id>.raw.attempt<N> \
+     --input-file <PROJECT_DIR>/.ghs/parallel/<plan_id>/<feature_id>.raw.attempt<N> \
      --min-length 50
    ```
 
@@ -233,7 +233,7 @@ Subagents already committed their implementation files individually. No further 
 ## Error Handling
 
 - **Subagent failure** (parallel mode): Record failure, continue other subagents, document in `.ghs/progress.md`.
-- **Subagent output format deviation**: If the subagent returns successfully but the output cannot be parsed via the completion-signal protocol (detected via `parse_completion_signal.py` returning `status: "unknown"`), retry once with the [Format Recovery](#format-recovery) appendix appended to the prompt. If retry still fails, the raw output is already saved at `<PROJECT_DIR>/.ghs/parallel/<sprint_id>/<feature_id>.raw.attempt<N>`; use AskUserQuestion to let the user decide (retry / manually mark completed / manually mark blocked / abort — see [## User Decision Handling](#user-decision-handling)). **Never silently hang on an unparseable response.**
+- **Subagent output format deviation**: If the subagent returns successfully but the output cannot be parsed via the completion-signal protocol (detected via `parse_completion_signal.py` returning `status: "unknown"`), retry once with the [Format Recovery](#format-recovery) appendix appended to the prompt. If retry still fails, the raw output is already saved at `<PROJECT_DIR>/.ghs/parallel/<plan_id>/<feature_id>.raw.attempt<N>`; use AskUserQuestion to let the user decide (retry / manually mark completed / manually mark blocked / abort — see [## User Decision Handling](#user-decision-handling)). **Never silently hang on an unparseable response.**
 - **Merge conflicts**: Detect via build/lint failures, isolate conflicting features, revert if needed.
 - **Catastrophic failure**: Stop orchestration, run full test suite, rollback if needed, recommend single-feature mode.
 - **File read/write failure**: Check paths and permissions, notify the user.
@@ -244,10 +244,10 @@ Subagents already committed their implementation files individually. No further 
 When a subagent returns output the parser cannot extract (`status: "unknown"`), the dispatcher retries the subagent once with a stronger format reminder appended to the prompt.
 
 **Constants**:
-- `MAX_RETRY = 1` — each subagent call may be re-dispatched at most once. This counter is independent from the sprint-level retry count.
+- `MAX_RETRY = 1` — each subagent call may be re-dispatched at most once. This counter is independent from the plan-level retry count.
 
 **Raw file naming** (preserves every attempt for post-mortem debugging):
-- Parallel mode: `<PROJECT_DIR>/.ghs/parallel/<sprint_id>/<feature_id>.raw.attempt<N>` — N starts at 1 for the first try, increments per retry.
+- Parallel mode: `<PROJECT_DIR>/.ghs/parallel/<plan_id>/<feature_id>.raw.attempt<N>` — N starts at 1 for the first try, increments per retry.
 
 **Retry appendix template** (append verbatim to the original subagent prompt; replace `<feature_id>` with the actual ID):
 

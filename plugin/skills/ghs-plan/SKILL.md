@@ -1,12 +1,12 @@
 ---
 name: ghs:plan
-description: "Generate comprehensive, executable technical plans through an iterative design-and-review process. Uses a three-role architecture: a dispatcher orchestrates a plan designer (Plan agent) and a plan reviewer (architect), running up to 5 rounds of review-revise cycles. Use this skill whenever the user asks to create a technical plan, design a solution, produce a tech spec, or wants to think through how to implement something before coding."
+description: "Produce an executable technical plan through a contract-driven pipeline: the dispatcher freezes a scope contract with the user, a designer subagent writes the plan body against it, a reviewer enforces contract mapping, and approval materializes tasks into features automatically. Use whenever the user asks to create a technical plan, design a solution, or think through how to implement something before coding."
 argument-hint: "[requirement description]"
 ---
 
 # Technical Plan Generation
 
-Produce an executable technical plan through multi-agent collaboration. The dispatcher (main conversation) coordinates a plan designer (Plan subagent) and a plan reviewer (architect subagent), iterating via review-revise cycles until the plan is ready.
+Produce an executable technical plan through multi-agent collaboration. The dispatcher (main conversation) coordinates a plan designer (Plan subagent) and a plan reviewer (architect subagent), operating under a hard review cap: one full review, then at most one targeted revision, one targeted re-review, and one final revision.
 
 ## Flow Overview
 
@@ -14,17 +14,20 @@ Produce an executable technical plan through multi-agent collaboration. The disp
 User describes requirement
   |
   v
-[Dispatcher] dispatch design task -> [Plan Designer] produces initial plan
-  |                                      |
-  v                                      v
-[Dispatcher] dispatch review task -> [Plan Reviewer] reviews plan
-  |                                      |
-  v                                      v
-[Dispatcher] evaluates result <-- Review report (with severity-graded issues)
-  +-- Has severe/medium issues -> dispatch revise task -> [Plan Designer] revises -> back to review
-  +-- No severe/medium issues -> AskUserQuestion for user approval
-       +-- User approves -> finalize plan, save to docs/ghs/plans/
-       +-- User rejects -> continue revise cycle
+[Phase 0] Init + entry triage ---- self-sufficient -> advise & exit (X)
+  |                               ---- light lane  -> L (merge at Phase 6)
+  v
+[Phase 1] Context snapshot (subagent)
+  v
+[Phase 2] Contract freeze (dispatcher Write, user confirm)
+  v
+[Phase 3] Design (Plan subagent; body only)
+  v
+[Phase 4] Review (4-step protocol; targeted revise/re-review inner loop)
+  v
+[Phase 5] Approval (user) --reject x3--> suggest contract replay (back to Phase 2)
+  v
+[Phase 6] Archive + materialize (tasks_to_features.py) -> suggest /ghs:code
 ```
 
 ## Prerequisites
@@ -39,8 +42,9 @@ User describes requirement
 | Role | Implementation | Responsibility |
 |------|---------------|----------------|
 | **Dispatcher** | Main conversation (you) | Orchestrate flow, manage state, communicate with user |
-| **Plan Designer** | Plan subagent | Design technical plan, revise based on review feedback |
-| **Plan Reviewer** | general-purpose subagent | Review plan from architect perspective, identify and grade issues |
+| **Contract** | Dispatcher authors, user confirms | Scope truth: six-piece contract header frozen at kickoff; body maps to it |
+| **Plan Designer** | Plan subagent | Design the plan body against the frozen contract (Current State / Design / Assumptions / Risks + task cards) |
+| **Plan Reviewer** | general-purpose subagent | Enforce contract mapping, decision discipline, anchor completeness |
 
 ### File Conventions
 
@@ -48,12 +52,14 @@ All intermediate files are stored under `.ghs/plans/`:
 
 | File | Description |
 |------|-------------|
-| `.ghs/plans/{date}-{slug}.md` | Technical plan (produced by designer) |
+| `.ghs/plans/{date}-{slug}.md` | Technical plan (contract header written by the dispatcher; body designed by the Plan subagent and concatenated by the dispatcher) |
 | `.ghs/plans/{date}-{slug}-context.md` | Project context snapshot (pre-extracted architectural summary) |
 | `.ghs/plans/{date}-{slug}-review.md` | Review report (produced by reviewer) |
 | `.ghs/plans/{date}-{slug}-status.json` | Status file (maintained by dispatcher) |
 
 Where `{date}` is `YYYY-MM-DD` and `{slug}` is a short English descriptor of the requirement topic.
+
+The plan file is created by the dispatcher in Phase 2 as the contract header; the designer only ever produces the body, which the dispatcher concatenates after the header — the contract never passes through the designer's hands.
 
 After final approval, the plan is copied to `docs/ghs/plans/{date}-{slug}.md`.
 
@@ -65,10 +71,11 @@ State is tracked via `.ghs/plans/{date}-{slug}-status.json`:
 {
   "plan_file": "{date}-{slug}.md",
   "context_file": "{date}-{slug}-context.md",
-  "round": 1,
-  "status": "designing | reviewing | revising | pending_approval | approved | rejected | aborted",
-  "max_rounds": 5,
-  "max_rounds_breaches": 0,
+  "status": "designing | reviewing | revising | pending_approval | approved | aborted",
+  "lane": "light | full",
+  "retry_counts": {"plan": 0, "review": 0, "context_snapshot": 0},
+  "reject_count": 0,
+  "final_fix_pending": false,
   "accepted_with_fail": false,
   "keep_raw_on_success": false,
   "created_at": "YYYY-MM-DDTHH:mm:ss",
@@ -77,9 +84,22 @@ State is tracked via `.ghs/plans/{date}-{slug}-status.json`:
 ```
 
 **Field descriptions**:
-- `max_rounds_breaches` (int, default `0`): Incremented by 1 each time the user chooses "Continue revising anyway" at Phase 2 FAIL @ max_rounds or Phase 3 reject @ max_rounds. When `max_rounds_breaches >= MAX_BREACHES` (default `2`, defined in [## Format Recovery](#format-recovery) → **Constants**), the continue option is removed from the menu in both Phase 2 and Phase 3; the user can only accept or abort. This enforces the hard cap that guarantees dispatcher termination in at most `max_rounds + MAX_BREACHES` rounds.
-- `accepted_with_fail` (bool, default `false`): Set to `true` during Phase 4 finalization if the plan header contains a `WARNING: accepted with unfixed issues` marker (from Phase 2 "Accept despite FAIL"). After-the-fact audit via `grep '"accepted_with_fail": true' .ghs/plans/*-status.json` reveals all plans that passed with unfixed issues. The `status` field itself remains `"approved"` (this is an independent flag, not a new status enum value).
+- `status` — six-state enum: `designing | reviewing | revising | pending_approval | approved | aborted`. The old `rejected` value is removed.
+- `retry_counts` (object with keys `plan`, `review`, `context_snapshot`) — each subagent kind has its own independent retry counter, persisted in this file, reset to `0` on a successful parse of that kind. Per-kind cap: `MAX_RETRY = 1`.
+- `reject_count` (int, default `0`) — cumulative count of Phase 5 approval rejections in this session. When `reject_count >= 3`, stop cycling and suggest a contract replay (back to Phase 2) instead of another revision.
+- `final_fix_pending` (bool, default `false`) — set to `true` when a targeted re-review still leaves residual issues. While it is `true`, exactly one targeted revision is allowed and no further re-review runs; the flag is cleared when the session enters `pending_approval` or `aborted`.
+- `accepted_with_fail` (bool, default `false`) — semantics narrowed to: residual issues remained after the (final) re-review AND the user explicitly accepted the plan anyway. After-the-fact audit via `grep '"accepted_with_fail": true' .ghs/plans/*-status.json` still reveals all plans that passed with unfixed issues. The `status` field itself remains `"approved"` (this is an independent flag, not a new status enum value).
 - `keep_raw_on_success` (bool, default `false`): When set to `true`, the dispatcher additionally writes the subagent response to `<file>.raw` (overwriting) even on successful parse, for post-mortem debugging. Use only for hard-to-debug sessions where the user suspects logic errors in the plan despite it passing format validation. Normal sessions keep this `false` to keep the main directory clean.
+
+Two cap counters live on disk: reject_count (Phase 5 rejections, >=3 triggers the contract-replay suggestion) and final_fix_pending (true while one final no-review revision is allowed). The dispatcher reads them before every branch — files are the single source of dispatcher state.
+
+Contract freeze is not a state-machine state — the plan document itself is the truth.
+
+State discipline: (1) write-through — status and files change in the same turn;
+(2) read-before-branch at the remaining branch points (Phase 4 verdict branch, Phase 5
+reject branch, Phase 6 materialize-failure branch); (3) cap counters live on disk
+(reject_count / final_fix_pending / retry_counts) and are never recomputed from memory;
+(4) the plan document itself is the contract-freeze truth — no state-machine entry for it.
 
 ### Issue Severity Levels (Reviewer Must Use)
 
@@ -87,9 +107,10 @@ State is tracked via `.ghs/plans/{date}-{slug}-status.json`:
 |-------|-----------|----------|
 | **Severe** | Would cause bugs, or the plan itself is incorrect | Unhandled race conditions, wrong security assumptions, logic errors |
 | **Medium** | Implementation path issues, poor design | Unreasonable abstraction levels, missing error handling, performance pitfalls |
+| **Unwarranted** | Plan content that maps to no contract entry | A section with no Goal/Decision/Open-Space/Constraint sponsor |
 | **Optimization** | Does not block plan execution, nice-to-have | Naming improvements, optional caching strategies, better observability |
 
-Pass criteria: **zero severe or medium issues**. Only optimization items are acceptable.
+Pass criteria: zero Unwarranted, zero Severe, zero Medium issues.
 
 ---
 
@@ -105,16 +126,46 @@ Pass criteria: **zero severe or medium issues**. Only optimization items are acc
 
 2. **Confirm requirement**: If the user has not provided a requirement description, use AskUserQuestion to ask: "Please describe the requirement you need a technical plan for." Ask only one question at a time.
 
-3. **Create working directory** (creates both the main directory and the `.tmp/` scratch subdirectory in one shot, so Handling step 2's Write to `.tmp/<x>.raw` never hits "No such file or directory"):
+3. **Entry triage** — classify the requirement into one lane (heuristics, not hard
+   thresholds), write `lane` into the status file, and route:
+
+   | Lane | Signals | Route | Interaction |
+   |---|---|---|---|
+   | Self-sufficient | Names exact files and the exact change; no design space | Advise doing it directly and exit (plain text — no AskUserQuestion) | One sentence |
+   | Light | Single subsystem; ≤ ~3 files; no new interface/schema; no architectural decision; short description | Light lane L below — skip Phase 1/3/4 entirely (zero subagents); dispatcher may read a few files directly to pin exact paths | 1 round |
+   | Full | Everything else | Continue to Phase 1 | In-flow |
+
+   **Downgrade-tell, upgrade-default**: moving DOWN to light/self-sufficient must be
+   stated to the user (they can upgrade at any time); moving UP to full never asks —
+   zero forced interaction rounds.
+
+4. **Create working directory** (creates both the main directory and the `.tmp/` scratch subdirectory in one shot, so Handling step 2's Write to `.tmp/<x>.raw` never hits "No such file or directory"):
    ```bash
    mkdir -p ${PROJECT_DIR}/.ghs/plans ${PROJECT_DIR}/.ghs/plans/.tmp
    ```
 
-4. **Generate file identifier**: Create `{date}-{slug}` based on current date and the requirement topic.
+5. **Generate file identifier**: Create `{date}-{slug}` based on current date and the requirement topic.
 
-5. **Initialize status file**: Write `status: "designing"`.
+6. **Initialize status file**: Write the status JSON per the schema, "status": "designing", "lane": "<light | full>" (the self-sufficient exit writes no file — it exits directly at step 3).
 
-### Phase 0.5: Context Snapshot Extraction
+### Light Lane L (zero subagents, merges at Phase 6)
+
+1. **Dispatcher drafts the contract header** (Phase 2 template, six pieces + Global
+   Constraints) and **ONE task card** (Phase 3 task-card serialization format) directly —
+   reading a handful of project files to pin exact paths is allowed.
+2. **Write** `{plan_file}` = contract header + task card. Set `pending_approval`.
+3. **Single merged round**: ONE AskUserQuestion showing the contract header + task card —
+   options `确认物化` / `调整后物化` / `升完整档`:
+   - `确认物化` → Phase 6 (shared `tasks_to_features.py`).
+   - `调整后物化` → the dispatcher edits the file in place, asks once more (once only), then Phase 6.
+   - `升完整档` → set `lane: "full"`, return to Phase 1. The written `{plan_file}` is kept as the
+     contract-header starting point: preserve the contract header (everything before the first
+     `### Task ` heading) verbatim and strip the old task card — the full-lane designer re-derives
+     the task breakdown in Phase 3. State the strip to the user (plain text, no question round).
+4. Reviewers do not run on this lane; the merged round IS the gate. Full-lane runs keep
+   review Step 1 contract mapping as the backstop for anything mis-triaged as light.
+
+### Phase 1: Context Snapshot Extraction
 
 Extract a condensed context snapshot of the project. This snapshot is shared by all subsequent subagents (designer and reviewer) across all rounds, eliminating redundant codebase exploration.
 
@@ -127,13 +178,12 @@ Extract a condensed context snapshot of the project. This snapshot is shared by 
 
 **Spawn a Context Subagent to extract the snapshot** — both the `subagent_type` AND the prompt template depend on `CODEGRAPH_AVAILABLE`:
 
-- If `CODEGRAPH_AVAILABLE = true`: spawn `general-purpose` (model `haiku`) with `PROMPT_TEMPLATE_CODEGRAPH`. Verified to inherit project-scoped codegraph MCP.
-- If `CODEGRAPH_AVAILABLE = false`: spawn `Explore` (model `haiku`) with `PROMPT_TEMPLATE_GREP`. read-only search agent — grep/glob/read fallback, no Write/Edit permission needed. The prompt explicitly forbids any `codegraph_*` call.
+- If `CODEGRAPH_AVAILABLE = true`: spawn `general-purpose` with `PROMPT_TEMPLATE_CODEGRAPH`. Verified to inherit project-scoped codegraph MCP.
+- If `CODEGRAPH_AVAILABLE = false`: spawn `Explore` with `PROMPT_TEMPLATE_GREP`. read-only search agent — grep/glob/read fallback, no Write/Edit permission needed. The prompt explicitly forbids any `codegraph_*` call.
 
 ```json
 {
   "subagent_type": "<general-purpose | Explore>",
-  "model": "haiku",
   "description": "Extract project context snapshot",
   "prompt": "<dispatcher fills with the full text of PROMPT_TEMPLATE_CODEGRAPH or PROMPT_TEMPLATE_GREP from below>"
 }
@@ -269,7 +319,7 @@ Do NOT attempt to write any files. Just output the content between the delimiter
 
    > **Copy this command verbatim, only replacing the `<placeholders>`.**
 
-   Path: `<PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.context.raw` (the `.tmp/` subdirectory is created once in Phase 0 init step 3).
+   Path: `<PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.context.raw` (the `.tmp/` subdirectory is created once in Phase 0 init step 4).
 
 3. Invoke the parser helper via `--input-file` (shell never sees the response content — zero injection surface):
 
@@ -287,11 +337,11 @@ Do NOT attempt to write any files. Just output the content between the delimiter
 
    - **`ok`** or **`fallback_used`**:
      - Write `content` to the target file (`<context_file>`). For `fallback_used`, prepend the warning comment `<!-- WARNING: extracted via fallback strategy: <strategy>; warnings: <warnings joined by "; "> -->`.
-     - **No post-mortem raw file is created on the happy path** (unless `keep_raw_on_success: true` in status.json — see [## State Tracking](#state-tracking)). Add `context_file` to the status JSON. Notify the user (as plain text in your response — this is informational, not a decision point, so do NOT use AskUserQuestion) if fallback was used. Proceed to Phase 1.
-   - **`empty`** / **`malformed`** with `retry_count < MAX_RETRY (=1)`:
+     - **No post-mortem raw file is created on the happy path** (unless `keep_raw_on_success: true` in status.json — see [## State Tracking](#state-tracking)). Add `context_file` to the status JSON. Notify the user (as plain text in your response — this is informational, not a decision point, so do NOT use AskUserQuestion) if fallback was used. Proceed to Phase 2.
+   - **`empty`** / **`malformed`** with `retry_counts.context_snapshot < MAX_RETRY (=1)`:
      1. **Now persist the response to a post-mortem raw file in the main directory** — this is the only time a `.raw` file lands in the main `.ghs/plans/` directory:
         - Path: `<PROJECT_DIR>/.ghs/plans/<context_file>.raw` for the first attempt, `<PROJECT_DIR>/.ghs/plans/<context_file>.raw.retry<T>` for retry T.
-     2. Increment `retry_count`, re-dispatch the Context Subagent with the original prompt plus the [Format Recovery](#format-recovery) appendix.
+     2. Increment `retry_counts.context_snapshot`, re-dispatch the Context Subagent with the original prompt plus the [Format Recovery](#format-recovery) appendix.
 
        Note: keep the SAME `subagent_type` and the SAME prompt template
        (`PROMPT_TEMPLATE_CODEGRAPH` or `PROMPT_TEMPLATE_GREP`) as the first attempt —
@@ -299,11 +349,62 @@ Do NOT attempt to write any files. Just output the content between the delimiter
        `general-purpose`+`PROMPT_TEMPLATE_CODEGRAPH` or `Explore`+`PROMPT_TEMPLATE_GREP`
        consistent with the first attempt.
      3. Return to step 1 with the new response (use `<context_file>.raw.retry<T>` if it fails again).
-   - **`empty`** / **`malformed`** with `retry_count >= MAX_RETRY`: Post-mortem raw is already saved at `<context_file>.raw[.retry<T>]`. Use AskUserQuestion per [## User Decision Handling](#user-decision-handling).
+   - **`empty`** / **`malformed`** with `retry_counts.context_snapshot >= MAX_RETRY`: Post-mortem raw is already saved at `<context_file>.raw[.retry<T>]`. Use AskUserQuestion per [## User Decision Handling](#user-decision-handling).
 
-### Phase 1: Plan Design (Round N)
+### Phase 2: Contract Freeze
 
-> Every round of plan design follows this flow. Round 1 is a fresh design; Round 2+ incorporates review feedback.
+The dispatcher owns the contract. The designer never sees the requirement conversation —
+only the frozen header.
+
+1. **Draft the six-piece contract** from the user's requirement description plus every
+   clarification already settled in conversation: intent (why), goals (checkable, one per
+   line), non-goals (explicit boundaries), anti-goals ("fails even if it ships" criteria),
+   decisions made so far (mark anything not user-ratified with `[DISCRETIONARY]`), open
+   space (explicitly left to the implementer), plus the `Global Constraints` section
+   (one item per line, exact values verbatim — formats, compatibility promises, naming
+   rules, ports; no prose). For oversized same-domain needs, slice milestones via the contract's Non-Goals across multiple plan runs (each run gets its own frozen contract); for needs spanning independent subsystems the Phase 3 SPLIT_SUGGESTED gate applies. Safe zone: a single plan stays under ~800 lines.
+2. **Confirm with the user** via AskUserQuestion — ONE question showing the full draft:
+   "以上是本次计划的范围契约，有无需要修正的地方？" Options: "确认冻结" / "需要修正"。
+   If the user requests corrections, revise in place and re-confirm (still the same
+   single question). If Phase 0/1 already included a clarification AskUserQuestion round,
+   ride this confirmation on that round's final exchange instead of adding a new one.
+3. **Freeze = Write.** Create `{PROJECT_DIR}/.ghs/plans/{plan_file}` with EXACTLY this
+   content (template verbatim; headings are fixed English tokens — parsers depend on
+   them; body text follows the repo language policy):
+
+```markdown
+# {Plan Title}
+
+> SCOPE CONTRACT — frozen at kickoff. 由 dispatcher 维护并经用户确认；
+> 正文不得扩大本契约范围，冲突时删正文不删契约。
+
+## Intent
+{一段话：为什么做这件事}
+
+## Goals
+- {可检验的目标，一条一行}
+
+## Non-Goals
+- {明确不做的事，说清边界在哪}
+
+## Anti-Goals
+- {"即使做成了也算失败"的失败判据}
+
+## Decisions
+- {已定决策一条一行；未经用户拍板、由 designer/dispatcher 裁量的项标 [DISCRETIONARY]}
+
+## Open Space
+- {明确留给实现方裁量、plan 不做决定的部分}
+
+## Global Constraints
+{一行一条，逐字精确值：格式、兼容性承诺、命名规范、端口等；无散文}
+```
+
+4. Update `updated_at` in the status file. Proceed to Phase 3.
+
+### Phase 3: Design
+
+> Phase 3 runs on initial design; targeted revision after a FAIL is an inner loop of Phase 4 and re-dispatches this phase with findings.
 
 Spawn a Plan subagent to design or revise the plan:
 
@@ -312,7 +413,7 @@ Spawn a Plan subagent to design or revise the plan:
 ```json
 {
   "subagent_type": "Plan",
-  "description": "Design technical plan round N",
+  "description": "Design technical plan body",
   "prompt": "<designer instructions>"
 }
 ```
@@ -320,89 +421,67 @@ Spawn a Plan subagent to design or revise the plan:
 **Designer Instruction Template**:
 
 ```
-You are a senior technical plan designer. Design an executable technical plan for the following requirement.
+You are a senior technical plan designer. Produce the BODY of a technical plan that continues a frozen contract header.
 
-## Requirement Description
-<user's requirement description>
+## Frozen Contract (FROZEN — do not modify, restate, or contradict; never output it)
+<dispatcher pastes the full contract header read from <PROJECT_DIR>/.ghs/plans/<plan_file>>
 
 ## Project Context
 - Project directory: <PROJECT_DIR>
 - **Context snapshot**: <PROJECT_DIR>/.ghs/plans/<context_file>
-  READ THIS FILE FIRST. It contains a condensed summary of the project's architecture,
-  tech stack, directory structure, and relevant code excerpts. Only read raw project
-  files if the snapshot is clearly insufficient for a specific detail.
+  READ THIS FILE FIRST. It contains a condensed summary of architecture, tech stack,
+  directory structure, and relevant code excerpts. Only read raw project files when the
+  snapshot lacks a specific detail you need.
 
 ## Task Requirements
-1. Read the context snapshot to understand the project architecture
-2. If the snapshot lacks specific detail you need, read the relevant source file(s) from the project
-3. Design a technical plan based on the requirement
-4. Output the FULL plan content in your response (do NOT attempt to write files)
-5. If you read files beyond the snapshot, list them after your completion signal
-
-## Plan Structure
-The plan should include the following sections (adjust flexibly based on the requirement):
-- Background and Goals
-- Current State Analysis
-- Plan Design (architecture, interfaces, data models, etc.)
-- Implementation Steps (phased, executable)
-- Risks and Mitigations
-
-## Round Information
-- Current round: Round <N>
-<N == 1 ? "" : "- Previous review report: <PROJECT_DIR>/.ghs/plans/<review_file>
-- Revise the plan based on all Severe and Medium issues in the review report. Each issue must be explicitly addressed in the revised plan.">
-
-## Reference
-Read ${CLAUDE_PLUGIN_ROOT}/shared/references/plan-designer.md for detailed design principles and plan structure guide.
-
-## Context Reset
-- Disregard any context from previous conversations
-- Read all necessary files fresh from the filesystem
-- This is an isolated task
+1. Read the context snapshot to understand the project.
+2. Design the plan body: ## Current State / ## Design / ## Assumptions / ## Risks,
+   followed by the task tail (### Task {N} cards, sequential from 1).
+3. Your output starts at `## Current State` — the contract header is NOT yours to output;
+   the dispatcher concatenates it ahead of your body.
+4. Read ${CLAUDE_PLUGIN_ROOT}/shared/references/plan-designer.md and follow its decision
+   discipline, task-card serialization rules, and discretion culture exactly.
+5. If you read files beyond the snapshot, list them after your completion signal.
 
 ## Output Format Requirements (CRITICAL)
-The dispatcher extracts your plan by searching for the literal delimiters `<<<PLAN_START>>>` and `<<<PLAN_END>>>`. If you deviate, the dispatcher must invoke a fallback parser, retry, or ask the user — wasting a round and slowing the planning loop. You MUST:
+The dispatcher extracts your plan by searching for the literal delimiters `<<<PLAN_START>>>`
+and `<<<PLAN_END>>>. If you deviate, the dispatcher must invoke a fallback parser, retry,
+or ask the user — wasting a round. You MUST:
 1. Output the delimiters EXACTLY as written: `<<<PLAN_START>>>` on its own line, `<<<PLAN_END>>>` on its own line.
-2. Put ALL plan content between them.
-3. **Do NOT wrap the delimiters or the content in a code fence** (no ` ``` ` markers around them).
-4. **Do NOT translate, transliterate, or modify the delimiter strings** — no `《《PLAN_START》》`, no `<<PLAN_START>>`, no `<<< PLAN_START >>>`.
+2. Put ALL plan content between them, starting with `## Current State`.
+3. **Do NOT wrap the delimiters or the content in a code fence.**
+4. **Do NOT translate, transliterate, or modify the delimiter strings.**
 5. Use the literal ASCII characters `<`, `>`, `_`.
 
 ### Correct example
 <<<PLAN_START>>>
-# My Plan
-... content ...
+## Current State
+...
+### Task 1: ...
+- Files: src/session.ts
+- Anchors:
+  - test_refresh_rejects_expired: 过期 token 返回 401 且不落库
 <<<PLAN_END>>>
 PLAN DESIGN COMPLETE
 
-### Incorrect examples (DO NOT DO THESE)
-- Wrapping in a code fence: ```` ```\n<<<PLAN_START>>>...\n<<<PLAN_END>>>\n``` ```` — the parser falls back to a less reliable strategy.
-- Translated punctuation: `《《PLAN_START》》...《《PLAN_END》》` — the parser may fall back or fail.
-- Missing or extra brackets: `<<PLAN_START>>` / `<<<<PLAN_START>>>>` — same problem.
-
-## Output Format
-Output the FULL plan content in your response, delimited by:
-<<<PLAN_START>>>
-...plan content here...
-<<<PLAN_END>>>
-
 ## Completion Signal
 When done, output: "PLAN DESIGN COMPLETE"
-If you encounter a technical decision you cannot resolve, output: "QUESTION: <specific question>"
 If you read files beyond the context snapshot, list them as: "ADDITIONAL FILES READ: <file1>, <file2>, ..."
+If the requirement spans multiple independent subsystems with no shared contract, output instead: "SPLIT_SUGGESTED: <reason + suggested sub-plan split>"
+(Do NOT emit QUESTION lines — that channel is retired. Decide and mark [ASSUMPTION].)
 ```
 
 **Handling Designer Feedback**:
 
 1. **Hold the subagent response in memory for the duration of parse.** Do NOT persist it to a post-mortem `.raw` file in the main `.ghs/plans/` directory on the happy path — only the `.tmp/` scratch file in step 3 exists transiently and is deleted in step 5. This is the key distinction from the old behavior: the main `.ghs/plans/` directory stays clean of raw files on success, but the response is briefly on disk under `.tmp/` for the duration of the parser call (which `--input-file` requires).
 
-2. **Designer question pre-check**: If the response contains a line matching `^QUESTION:\s*(.+)$`, treat it as a designer question — use AskUserQuestion to relay the question to the user, then re-dispatch the Plan subagent with the original prompt plus the user's answer appended. **No temporary file written** (the question response is short and not persisted). Skip the remaining steps.
+2. **SPLIT_SUGGESTED pre-check**: If the response contains a line matching ^SPLIT_SUGGESTED:\s*(.+)$, use AskUserQuestion to let the user decide: 拆分 (set the current plan's status to "aborted", tell the user the suggested sub-plan split; each sub-plan later runs the full flow) / 合并 (append the user's reason and re-dispatch the designer, returning to this Phase's step 1).
 
 3. Write the response verbatim to a **temporary file** for parser input (this is a scratch file under `.tmp/`, not a post-mortem raw in the main directory):
 
    > **Copy this command verbatim, only replacing the `<placeholders>`.**
 
-   Path: `<PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.plan.raw` (the `.tmp/` subdirectory is created once in Phase 0 init step 3).
+   Path: `<PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.plan.raw` (the `.tmp/` subdirectory is created once in Phase 0 init step 4).
 
 4. Invoke the parser helper via `--input-file` (shell never sees the response content — zero injection surface):
 
@@ -419,115 +498,68 @@ If you read files beyond the context snapshot, list them as: "ADDITIONAL FILES R
 5. Read the JSON object from stdout. **Delete the temporary file from step 3** (whether parse succeeded or failed — the temp file's job is done; persistence decisions are separate). Then branch on `status`:
 
    - **`ok`** or **`fallback_used`**:
-     - Write `content` to the target file (`<plan_file>`). For `fallback_used`, prepend the warning comment `<!-- WARNING: extracted via fallback strategy: <strategy>; warnings: <warnings joined by "; "> -->`.
-     - **No post-mortem raw file is created on the happy path** (unless `keep_raw_on_success: true` in status.json — see [## State Tracking](#state-tracking)). Update status to `reviewing`. Notify the user (as plain text in your response — this is informational, not a decision point, so do NOT use AskUserQuestion) if fallback was used. Proceed to Phase 2.
-   - **`empty`** / **`malformed`** with `retry_count < MAX_RETRY (=1)`:
+     - On `ok`/`fallback_used`, **the dispatcher overwrites `{plan_file}` with contract header + body**: Read the existing file for the contract header — everything before the first `### Task ` heading (the Phase 2 frozen content; physically never routed through the designer); the body is the parsed `content`; if the body starts with `# {Plan Title}` or a duplicated contract header, strip it down to `## Current State`. On `fallback_used`, prepend the warning comment after the contract header, before the body.
+     - **No post-mortem raw file is created on the happy path** (unless `keep_raw_on_success: true` in status.json — see [## State Tracking](#state-tracking)). Update status to `reviewing`. Notify the user (as plain text in your response — this is informational, not a decision point, so do NOT use AskUserQuestion) if fallback was used. Proceed to Phase 4.
+   - **`empty`** / **`malformed`** with `retry_counts.plan < MAX_RETRY (=1)`:
      1. **Now persist the response to a post-mortem raw file in the main directory** — this is the only time a `.raw` file lands in the main `.ghs/plans/` directory:
         - Path: `<PROJECT_DIR>/.ghs/plans/<plan_file>.raw` for the first attempt, `<PROJECT_DIR>/.ghs/plans/<plan_file>.raw.retry<T>` for retry T.
-     2. Increment `retry_count`, re-dispatch the Plan subagent with the original prompt plus the [Format Recovery](#format-recovery) appendix for plan.
+     2. Increment `retry_counts.plan`, re-dispatch the Plan subagent with the original prompt plus the [Format Recovery](#format-recovery) appendix for plan.
      3. Return to step 1 with the new response (use `<plan_file>.raw.retry<T>` if it fails again).
-   - **`empty`** / **`malformed`** with `retry_count >= MAX_RETRY`: Post-mortem raw is already saved at `<plan_file>.raw[.retry<T>]`. Use AskUserQuestion per [## User Decision Handling](#user-decision-handling).
+   - **`empty`** / **`malformed`** with `retry_counts.plan >= MAX_RETRY`: Post-mortem raw is already saved at `<plan_file>.raw[.retry<T>]`. Use AskUserQuestion per [## User Decision Handling](#user-decision-handling).
 
-### Phase 2: Plan Review
+### Phase 4: Review (full) + Targeted Revise/Re-Review Inner Loop
 
-Update status to `reviewing` and spawn the reviewer subagent:
+Hard cap on model calls in this phase: full review 1 + targeted revision 1 + targeted
+re-review 1 + final revision 1 = 4. The happy path (first review PASSes) uses 1.
+
+Read status.json BEFORE branching; branch only on the values just read.
+
+**Full review dispatch** (status `designing` → set `reviewing` first):
 
 ```json
 {
   "subagent_type": "general-purpose",
-  "description": "Review technical plan round N",
+  "description": "Review technical plan (full)",
   "prompt": "<reviewer instructions>"
 }
 ```
 
-**Reviewer Instruction Template**:
+**Reviewer Instruction Template (FULL mode)**:
 
 ```
-You are a senior architect responsible for reviewing technical plans. Critically examine the following plan.
+You are a senior architect reviewing a technical plan against its frozen scope contract.
 
 ## Review Target
-- Plan file: <PROJECT_DIR>/.ghs/plans/<plan_file>
+- Plan file (contract header + body — read the contract header FIRST): <PROJECT_DIR>/.ghs/plans/<plan_file>
 - Context snapshot: <PROJECT_DIR>/.ghs/plans/<context_file>
 - Project directory: <PROJECT_DIR>
+- Mode: FULL REVIEW
 
-## Review Requirements
-1. Read the context snapshot to understand the existing architecture
-2. Read the plan file
-3. If you need to verify specific implementation details against actual code, read those files from the project
-4. Check each section of the plan systematically
-5. Identify all issues and label them with severity:
-   - **Severe**: Would cause bugs, or the plan itself is incorrect
-   - **Medium**: Implementation path issues, poor design
-   - **Optimization**: Does not block execution, nice-to-have
+## Task
+Run the four-step review protocol in the order defined in
+${CLAUDE_PLUGIN_ROOT}/shared/references/plan-reviewer.md:
+Step 4 builder questions (cold read) -> Step 1 contract mapping -> Step 2 bidirectional
+failure scan -> Step 3 anchor completeness. Follow its severity definitions (Unwarranted /
+Severe / Medium / Optimization), its report skeleton, and its verdict rule
+(PASS = zero Unwarranted + zero Severe + zero Medium).
 
 ## Output Format Requirements (CRITICAL)
-The dispatcher extracts your review by searching for the literal delimiters `<<<REVIEW_START>>>` and `<<<REVIEW_END>>>`, and reads the verdict from the line beginning with `REVIEW COMPLETE`. If you deviate, the dispatcher must invoke a fallback parser, retry, or ask the user — wasting a round and slowing the planning loop. You MUST:
-1. Output the delimiters EXACTLY as written: `<<<REVIEW_START>>>` on its own line, `<<<REVIEW_END>>>` on its own line.
-2. Put ALL review report content between them.
-3. **Do NOT wrap the delimiters or the content in a code fence** (no ` ``` ` markers around them).
-4. **Do NOT translate, transliterate, or modify the delimiter strings** — no `《《REVIEW_START》》`, no `<<REVIEW_START>>`, no `<<< REVIEW_START >>>`.
-5. End with the literal completion signal `REVIEW COMPLETE | Verdict: PASS|FAIL | Severe: X Medium: Y Optimization: Z` on its own line — the dispatcher reads the verdict from this line via a parser; if it's missing or malformed, the review will be retried.
-6. Use the literal ASCII characters `<`, `>`, `_`, `|`.
-
-### Correct example
-<<<REVIEW_START>>>
-... review report ...
-<<<REVIEW_END>>>
-REVIEW COMPLETE | Verdict: PASS | Severe: 0 Medium: 0 Optimization: 1
-
-### Incorrect examples (DO NOT DO THESE)
-- Wrapping in a code fence, translated punctuation, missing/extra brackets — same problems as the designer case.
-- Completion signal without `Verdict: PASS|FAIL` — the dispatcher cannot determine the verdict and will retry.
-
-## Review Report Format
-Output the FULL review report in your response, delimited by:
-<<<REVIEW_START>>>
-...review report content here...
-<<<REVIEW_END>>>
-
-Do NOT attempt to write any files.
-
-The review report must include:
-- Plan summary (one sentence)
-- Issue list (each item: severity, location/section, description, suggested fix direction)
-- Conclusion: PASS (only optimization items) / FAIL (has severe or medium issues)
-
-## Review Criteria
-- Does the plan fully cover the requirement?
-- Are technology choices reasonable?
-- Are implementation steps executable without ambiguity?
-- Are edge cases and error handling considered?
-- Is the plan compatible with the existing architecture?
-- Are there security risks or performance issues?
-
-## Reference
-Read ${CLAUDE_PLUGIN_ROOT}/shared/references/plan-reviewer.md for detailed review standards, severity definitions, and review report format.
+Output the FULL report between the literal delimiters <<<REVIEW_START>>> and
+<<<REVIEW_END>>> (each on its own line, no code fences, ASCII only), then end with the
+signal line on its own line:
+REVIEW COMPLETE | Verdict: PASS|FAIL | Unwarranted: X Severe: Y Medium: Z Optimization: W
 
 ## Context Reset
-- Disregard any context from previous conversations
-- Read all necessary files fresh from the filesystem
-- This is an isolated task
+- Disregard any context from previous conversations; read files fresh; isolated task.
 
 ## Completion Signal
-When done, output: "REVIEW COMPLETE | Verdict: PASS/FAIL | Severe: X Medium: Y Optimization: Z"
-If you encounter a judgment you cannot resolve, output: "QUESTION: <specific question>"
+When done, output the signal line above. The QUESTION channel is retired — pile-3 items
+go in the report's Builder Questions section.
 ```
 
-**Handling Reviewer Feedback**:
+**Handling**:
 
-1. **Hold the subagent response in memory for the duration of parse.** Do NOT persist it to a post-mortem `.raw` file in the main `.ghs/plans/` directory on the happy path — only the `.tmp/` scratch file in step 3 exists transiently and is deleted in step 5. This is the key distinction from the old behavior: the main `.ghs/plans/` directory stays clean of raw files on success, but the response is briefly on disk under `.tmp/` for the duration of the parser call (which `--input-file` requires).
-
-2. **Reviewer question pre-check**: If the response contains a line matching `^QUESTION:\s*(.+)$`, treat it as a reviewer question — use AskUserQuestion to relay the question to the user, then re-dispatch the reviewer with the original prompt plus the user's answer appended. **No temporary file written** (the question response is short and not persisted). Skip the remaining steps.
-
-3. Write the response verbatim to a **temporary file** for parser input (this is a scratch file under `.tmp/`, not a post-mortem raw in the main directory):
-
-   > **Copy this command verbatim, only replacing the `<placeholders>`.**
-
-   Path: `<PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.review.raw` (the `.tmp/` subdirectory is created once in Phase 0 init step 3).
-
-4. Invoke the parser helper via `--input-file` (shell never sees the response content — zero injection surface):
-
-   > **You MUST copy this command verbatim, only replacing the `<placeholders>`. Do NOT parse the subagent output yourself — the helper is the single source of truth for delimiter extraction AND for the verdict.**
+1. Write the response verbatim to `<PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.review.raw`, parse with:
 
    ```bash
    command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_delimited_output.py \
@@ -537,156 +569,128 @@ If you encounter a judgment you cannot resolve, output: "QUESTION: <specific que
      --min-length 150
    ```
 
-5. Read the JSON object from stdout. **The verdict comes from the JSON `verdict` field — do NOT re-parse the completion signal text yourself.** **Delete the temporary file from step 3** (whether parse succeeded or failed — the temp file's job is done; persistence decisions are separate). Then branch on `status` AND `verdict`:
+2. Delete the temp file, then branch on the JSON (`retry_counts.review` for format retries, per Format Recovery; post-mortem raw rules unchanged):
 
-   - **`ok` or `fallback_used`** with `verdict == "PASS"`:
-     - If `status == "fallback_used"`, write `content` to `<review_file>` with a leading warning comment: `<!-- WARNING: extracted via fallback strategy: <strategy>; warnings: <warnings joined by "; "> -->`. Otherwise write `content` directly.
-     - **No post-mortem raw file is created on the happy path** (unless `keep_raw_on_success: true` in status.json — see [## State Tracking](#state-tracking)).
-     - **Early stop**: If `round == 1`, proceed directly to Phase 3 — no need for additional rounds.
-     - Update status to `pending_approval`. Proceed to Phase 3.
-   - **`ok` or `fallback_used`** with `verdict == "FAIL"`:
-     - Write `content` to `<review_file>` (with the warning comment if `fallback_used`).
-     - **No post-mortem raw file is created on the happy path** (unless `keep_raw_on_success: true` in status.json — see [## State Tracking](#state-tracking)).
-     - Check round count:
-       - `round < max_rounds` -> Update status to `revising`, increment round, go back to Phase 1.
-       - `round >= max_rounds` AND `max_rounds_breaches < MAX_BREACHES` -> Max round limit reached. Use AskUserQuestion to present three options (symmetric with Phase 3 reject @ max_rounds), with the Approval Summary block as the question body. This is the FAIL scenario of the block defined in [Approval Summary Assembly](#approval-summary-assembly), with these deviations from the standard template:
-         - **Header line**: instead of `Plan ready for approval (...)`, show `Plan review FAILED (Round {round}/{max_rounds}, breaches {max_rounds_breaches}/{MAX_BREACHES})` — the block must not claim readiness while listing blocking issues.
-         - **Review Result section**: instead of the PASS stats line, show the FAIL stats line `Verdict: FAIL | Severe: {X} Medium: {Y}` followed by the titles of the Severe/Medium issues that triggered the FAIL, one per line, up to 6 titles (keep each title to one line); if there are more, truncate and append the line `... {N} more issue(s) — see Review file below`.
-         - **Files section**: unchanged — both the Plan and Review file paths stay; the Review path lets the user dig into the full report.
-         - **Closing line**: replace the closing guarantee/question with `The latest review found Severe/Medium issues. Continue revising, accept the plan as-is, or abort?`
-         - **Line budget**: the total block budget is relaxed to ≤ 40 lines for this scenario (instead of the standard 34), accommodating the issue-title lines.
-         1. **Continue revising anyway** (one-shot breach): Increment `max_rounds_breaches`, increment `round`, go back to Phase 1. Attach the Approval Summary block (per the deviations above) so the user understands what triggered the FAIL. (In other words: attach the Approval Summary block instead of dumping the full review report.)
-         2. **Accept the current plan despite the FAIL**: Proceed to Phase 4 with the current plan file (the user takes responsibility for the unfixed issues). Add a marker line at the top of the plan file: `<!-- WARNING: accepted with unfixed issues (round <R>, breaches=<B>): Severe=<X> Medium=<Y> -->` (see Phase 4 Finalization for handling).
-         3. **Abort**: Set status to `aborted`, stop.
-       - `round >= max_rounds` AND `max_rounds_breaches >= MAX_BREACHES` -> Hard cap reached. Use AskUserQuestion to present only two options (continue breach not available), attaching the same FAIL-scenario Approval Summary block as above (failed header + FAIL stats + up to 6 issue titles, total ≤ 40 lines) plus this notice line appended after the Files section: `Hard cap reached: no further revision rounds available` (same wording as the Phase 3 hard-cap menu):
-         1. **Accept the current plan despite the FAIL**: Same marker as above (see Phase 4 Finalization).
-         2. **Abort**.
-   - **`ok` or `fallback_used`** with `verdict == null`: Treat as format deviation — the reviewer's signal line did not contain `Verdict: PASS|FAIL`. Fall through to the retry path below.
-   - **`empty` or `malformed`** (or `verdict == null`) with `retry_count < MAX_RETRY (=1)`:
-     1. **Now persist the response to a post-mortem raw file in the main directory** — this is the only time a `.raw` file lands in the main `.ghs/plans/` directory:
-        - Path: `<PROJECT_DIR>/.ghs/plans/<review_file>.raw` for the first attempt, `<PROJECT_DIR>/.ghs/plans/<review_file>.raw.retry<T>` for retry T.
-     2. Increment `retry_count`, re-dispatch the reviewer with the original prompt plus the [Format Recovery](#format-recovery) appendix for review.
-     3. Return to step 1 with the new response (use `<review_file>.raw.retry<T>` if it fails again).
-   - **`empty` or `malformed`** (or `verdict == null`) with `retry_count >= MAX_RETRY`: Post-mortem raw is already saved at `<review_file>.raw[.retry<T>]`. Use AskUserQuestion per [## User Decision Handling](#user-decision-handling).
+   - **`ok`/`fallback_used`, verdict PASS or FAIL**: write `content` to `<review_file>` (prepend the fallback warning comment if `fallback_used`), overwrite. If `keep_raw_on_success: true`, also write the raw.
+   - **`empty`/`malformed`/`verdict == null`**: per Format Recovery (retry once with the appendix; then User Decision Handling).
 
-### Phase 2.5: Context Snapshot Update (Optional)
+3. **Builder Questions (pile 3)**: read the report's Builder Questions section. If it is not "None", ask the user ONCE via AskUserQuestion — single batched question round, max 5 questions, each with the reviewer's 2-4 mutually exclusive options and recommended default. Questions beyond the cap (or unanswered) fall to Assumptions — do NOT follow up with more rounds. Record the user's answers.
 
-After each design-review round, if the designer or reviewer read additional files beyond the context snapshot, update the snapshot to include the newly discovered context. This ensures subsequent rounds benefit from expanded knowledge.
+4. **Branch on verdict** (read status.json first):
 
-1. Check if the designer output contains `ADDITIONAL FILES READ: ...`
-2. If so, append a `## Supplementary Context` section to the context snapshot file with summaries of the additional files
-3. Future rounds will automatically include this expanded context
+   - **PASS** (`reviewing`): if Builder Questions had answers → ONE touch-up dispatch to the designer (Phase 3 template + appendix: "Apply these user answers: <answers>. Change nothing else; output the FULL body.") → concatenate the contract header + body, overwrite plan file. **No re-review after a touch-up.** If no answers → proceed directly. Set `pending_approval`, go to Phase 5.
+   - **FAIL** (`reviewing` → set `revising`): ONE targeted revision dispatch — Phase 3 template + appendix:
 
-### Phase 3: User Approval
+     ```
+     ## Targeted Revision
+     Address the review findings ONLY, one by one:
+     - Unwarranted -> delete the section/content.
+     - Under-decision (Severe) -> supply the decision.
+     - Over-decision (Medium) -> cut to decision level.
+     - Anchor gaps (Medium) -> add compliant anchors.
+     Apply the user's Builder-Question answers: <answers, if any>.
+     Expanding beyond the findings is forbidden. Output the FULL body.
+     ```
 
-After the plan passes review, assemble an Approval Summary block (see below) and use AskUserQuestion to request user confirmation, with the summary block as the question body. This also applies to the early-stop path (round == 1 with PASS, entered directly from Phase 2).
+     Concatenate the contract header + body, overwrite plan file, set `reviewing`, then ONE targeted re-review dispatch (same template, `Mode: TARGETED RE-REVIEW`, prompt appended with the previous findings list verbatim and the instruction: "verify each finding ADDRESSED/NOT ADDRESSED + check touched sections for fresh damage; do not re-run the full protocol"). Write the new report over `<review_file>`.
+     - Re-review clean (`Unwarranted: 0 Severe: 0 Medium: 0`, and all prior findings ADDRESSED) → `pending_approval`, Phase 5.
+     - Residue remains → AskUserQuestion, user's call (spec cap flow — never automatic):
+       - `再修一次（最后一次，无复审）` → set `final_fix_pending: true`, ONE final revision dispatch (same targeted appendix with only the surviving findings; **no re-review**), overwrite plan file, then `pending_approval`, Phase 5.
+       - `带瑕疵接受` → write the accepted-with-fail marker as the FIRST line of `{plan_file}`: `<!-- WARNING: accepted with unfixed issues; S=<X> M=<Y> -->` (`<X>`/`<Y>` = surviving Severe/Medium counts from the latest `<review_file>`), then `pending_approval`, Phase 5 — the approval surface already lists the residue, and Phase 6 turns the marker into the `accepted_with_fail` audit flag and commit suffix.
+       - `中止` → status `aborted`, stop.
 
-#### Approval Summary Assembly
+5. **`final_fix_pending` discipline**: while `true`, only one targeted revision is allowed and no further review runs. Clear the flag when entering `pending_approval` or `aborted`. This flag is the on-disk form of the 4-call hard cap — it survives restarts.
 
-Before asking, read small fragments of the plan/review/status files from disk and assemble a plain-text summary block. Extraction rules:
+6. **Context Snapshot Update** (carried): if the designer/reviewer reported `ADDITIONAL FILES READ`, append a `## Supplementary Context` section to `<context_file>` so later dispatches see the expanded context.
 
-| Block section | Source | How to extract |
-|---|---|---|
-| Plan Summary | Review file's plan-summary section (starting point) + plan file goal/core-approach sections (expansion material) | Read the review file (usually < 100 lines, read it whole) and locate its plan-summary section: the reviewer writes free-form prose, so the heading may be `## Plan Summary`, `## 方案摘要`, or another equivalent summary-like heading (a short section near the top summarizing the plan). Do NOT depend on one literal heading. Take the first non-empty paragraph under it as the starting point. Then read the plan file's goal/core-approach sections per the read budget below. Synthesize both into a 2-4 sentence summary (~50-150 words): the first sentence states the goal (what problem the plan solves), the next 1-3 sentences state what it concretely does (which files change, what mechanism/module is introduced, which scenarios are covered) — do NOT expand implementation details. If either source is missing, generate from what is available; if all are missing, write `N/A`. |
-| Key Technical Decisions | Plan file `## Plan Design` section (including its `###` subsections — that is where the plan's own decisions live; `## Current State Analysis` describes the pre-existing codebase and may be skimmed only as optional context) | Grep `^## ` to locate section headings, then read those sections in segments (include `###` subsections of Plan Design). Pick decision-like points about what the PLAN chooses (technology choices, architecture trade-offs, interface contracts) — not descriptions of existing architecture — and rewrite each as a one-line short sentence, at most 5. |
-| Review stats | 1. The parser JSON `completion_signal` field from the most recent review parse (Phase 2 -> Phase 3 happens in the same conversation turn, so this is normally in memory). 2. If unavailable: an issue-count section in the review file (`## Issue Summary` / `## 问题清单` or equivalent). | Do NOT infer counts from the JSON `verdict` field — `verdict` only holds PASS/FAIL/null, no counts. The `completion_signal` field holds the full signal line `REVIEW COMPLETE \| Verdict: ... \| Severe: X Medium: Y Optimization: Z`; parse the counts from it. Note: the written review file does NOT contain the signal line (the parser strips it before the dispatcher writes `content`), so do not look for it there. |
-| Round/budget status | status JSON for `{round}`/`{max_rounds}`/`{max_rounds_breaches}`; the `{MAX_BREACHES}` template placeholder is NOT a status field — it is the SKILL.md constant (default `2`, defined in [## Format Recovery](#format-recovery) → `**Constants**`) | Fill the template directly from the values above. |
+**Contract replay** (explicit back-edge Phase 5 → Phase 2; see Phase 5): same `{plan_file}` — the dispatcher drafts and the user confirms a NEW contract header, the old body is deleted wholesale (it mapped the old contract), `<review_file>` will be overwritten by the next full review, status → `designing`, `reject_count` and `retry_counts` reset to zero, then a brand-new Phase 3.
 
-**Read budget constraints** (to prevent context bloat):
+### Phase 5: Approval
 
-- The review file is usually < 100 lines — read it whole; every review-sourced field comes from this single read.
-- For the plan file, read only the sections named in the table above (goal/core-approach and design sections), located via grep `^## ` and read in segments of ≤ 60 lines each. The summary and the decisions share these reads; do NOT re-read. Do NOT bulk-read the whole plan file into the main conversation.
-- If any field cannot be extracted, write `N/A` and still ask the question — the summary is best-effort and must not introduce a new failure path.
+The approval surface is assembled at ~zero cost because the dispatcher authored the
+contract. Assemble (≤ ~40 lines total) and ask via AskUserQuestion:
 
-**Line budget** (total block ≤ 34 lines): summary section ≤ 4 lines; decisions ≤ 5 lines; Review Result ≤ 2 lines; Files 2 lines.
+| Block | Source |
+|---|---|
+| 契约头 | Read `<plan_file>` top — paste Intent / Goals / Non-Goals / Anti-Goals verbatim (Decisions/Open Space/Global Constraints may collapse to a one-line count) |
+| 任务清单 | Grep `^### Task ` lines from `<plan_file>` (title line only) |
+| 评审残留 | Latest `<review_file>`: signal counts + surviving finding titles (one line each; "无" if PASS with none) |
+| Assumptions | The `<plan_file>` Assumptions section, item by item (omit this block if "None") |
+| 文件 | Plan / Review 两个路径 |
 
-**Summary block template** (plain text — no `##`/`**` Markdown syntax in the output):
+Question: "是否批准该计划？" Options: `批准（归档并物化）` / `拒绝（说明修改方向）` / `中止`。
 
-```
-Plan ready for approval (Round {round}/{max_rounds}, breaches {max_rounds_breaches}/{MAX_BREACHES})
+- **approve** → Phase 6。
+- **reject**: Read status.json first. Increment `reject_count` and persist it:
+  - `reject_count < 3`: set `status: "revising"` (write-through), ONE targeted revision from the user's feedback (Phase 3 template + feedback appendix, no model review), concatenate and overwrite the plan file, set `status: "pending_approval"`, then reassemble the approval surface.
+  - `reject_count >= 3`: **suggest contract replay** (a soft suggestion, not a hard gate): AskUserQuestion — `契约重放` / `再修订一次` / `中止`. `再修订一次` follows the same status discipline as the <3 path (revising → pending_approval, write-through). The user may also initiate a replay at any time.
+- **contract replay** (back-edge Phase 5 → Phase 2): overwrite the same `{plan_file}` in place — the dispatcher re-runs Phase 2 (draft a new contract header + user confirmation + Write overwrite); the old body is voided and deleted wholesale (it mapped the old contract); status → `designing`; `reject_count` and `retry_counts` reset to zero; then a brand-new Phase 3. `<review_file>` needs no deletion — the next full review overwrites it.
+- **`中止`** → status `aborted`, stop.
 
-=== Plan Summary ===
-{plan summary — per extraction rules above}
+### Phase 6: Archive + Materialize
 
-=== Key Technical Decisions ===
-- {decision 1}
-- {decision 2}
-
-=== Review Result ===
-Verdict: PASS | Severe: {X} Medium: {Y} Optimization: {Z}
-{optimization titles line — only if Z > 0}
-
-=== Files ===
-- Plan: <PROJECT_DIR>/.ghs/plans/{plan_file}
-- Review: <PROJECT_DIR>/.ghs/plans/{review_file}
-
-The plan has completed {round} rounds of review with no severe or medium issues remaining (verdict from the latest review: PASS).
-Do you approve this plan?
-```
-
-- **User approves** -> Proceed to Phase 4
-- **User rejects**:
-  - If `round < max_rounds`: Ask for specific revision requests (no Approval Summary block needed — the user just reviewed it), update status to `revising`, increment `round`, go back to Phase 1.
-  - If `round >= max_rounds` AND `max_rounds_breaches < MAX_BREACHES` (default `MAX_BREACHES = 2`, defined in [## Format Recovery](#format-recovery) → `**Constants**`): Max round limit reached. Use AskUserQuestion to present three options, since continuing would exceed the configured max_rounds. Do NOT re-assemble the full Approval Summary block (the user just reviewed and rejected it) — instead use a one-line state recap as the question body: `Round {round}/{max_rounds}, breaches {max_rounds_breaches}/{MAX_BREACHES}, latest review: PASS` followed by the notice line `Continuing would exceed max_rounds budget; {MAX_BREACHES - max_rounds_breaches} breach(es) remaining` and the question `How do you want to proceed?`:
-    1. **Continue revising anyway** (one-shot breach): Increment `max_rounds_breaches`, ask for feedback (no Approval Summary block needed — the user just reviewed it), increment `round`, go to Phase 1.
-    2. **Accept the current plan**: Proceed to Phase 4 finalization with the current plan file.
-    3. **Abort**: Set status to `aborted`, stop.
-  - If `round >= max_rounds` AND `max_rounds_breaches >= MAX_BREACHES`: Hard cap reached. Use AskUserQuestion to present only two options (the "Continue revising anyway" breach option is NO LONGER available). Same one-line state recap as above as the question body, with the notice line `Hard cap reached: no further revision rounds available` and the question `How do you want to proceed?`:
-    1. **Accept the current plan**: Proceed to Phase 4 finalization.
-    2. **Abort**: Set status to `aborted`, stop.
-
-  > The reject path does NOT silently continue past max_rounds. Each extra round requires explicit user opt-in, AND the total number of breaches is capped at `MAX_BREACHES` (defined in [## Format Recovery](#format-recovery) → `**Constants**`). Once the cap is reached, the dispatcher can no longer spawn a new round — the user must accept or abort. This closes BOTH the "silent continue" gap AND the "user keeps picking continue forever" gap (the latter being the actual root cause of the Round 5 runaway in the diagnostic session).
-
-### Phase 4: Finalization
-
-1. Copy the plan from `.ghs/plans/` to `docs/ghs/plans/`:
+1. Copy the approved plan to the permanent archive:
    ```bash
    mkdir -p ${PROJECT_DIR}/docs/ghs/plans
    cp ${PROJECT_DIR}/.ghs/plans/${plan_file} ${PROJECT_DIR}/docs/ghs/plans/${plan_file}
    ```
 
-2. **Check for accepted-with-fail marker**: Read the top of the plan file. If it contains a line matching `<!-- WARNING: accepted with unfixed issues`, set `ACCEPTED_WITH_FAIL = true` and extract the `<R>`, `<B>`, `<X>`, `<Y>` values from the marker. Otherwise set `ACCEPTED_WITH_FAIL = false`.
+2. **Check for accepted-with-fail marker**: Read the top of the plan file. If it contains a line matching `<!-- WARNING: accepted with unfixed issues`, set `ACCEPTED_WITH_FAIL = true` and extract the `<X>`/`<Y>` values; otherwise `false`.
 
-3. Commit the finalized plan document. If `ACCEPTED_WITH_FAIL == true`, append the suffix `[accepted-with-fail; S=<X> M=<Y>]` to the commit message so that future `git log` readers can identify plans that passed with unfixed Severe/Medium issues:
+3. Commit the archived plan. With the `accepted-with-fail` suffix when applicable:
    ```bash
-   cd ${PROJECT_DIR} && git add docs/ghs/plans/${plan_file} && git commit -m "docs(plan): add technical plan - ${plan_file}[accepted-with-fail; S=<X> M=<Y>]"
+   cd ${PROJECT_DIR} && git add docs/ghs/plans/${plan_file} && git commit -m "docs(plan): 新增技术方案 - ${plan_file}"
    ```
-   If `ACCEPTED_WITH_FAIL == false`, use the original commit message:
+   (If `ACCEPTED_WITH_FAIL == true`, append the suffix `[accepted-with-fail; S=<X> M=<Y>]` to the message.)
+
+4. **Materialize the task tail** (plan loop closed — the main chain converges to plan → code):
    ```bash
-   cd ${PROJECT_DIR} && git add docs/ghs/plans/${plan_file} && git commit -m "docs(plan): add technical plan - ${plan_file}"
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/tasks_to_features.py \
+     --project-dir <PROJECT_DIR> \
+     --plan-file <PROJECT_DIR>/docs/ghs/plans/<plan_file>
    ```
+   Read the JSON from stdout and branch on `status`:
 
-4. Update status to `approved`. If `ACCEPTED_WITH_FAIL == true`, also write `"accepted_with_fail": true` to the status file (so `status.json` can be grepped after-the-fact for "带病通过" plans). The `status` field itself stays `"approved"` (this avoids a new state-machine value); `accepted_with_fail` is a separate boolean flag.
+   - **`parsed`**: features written. Report plan id and feature ids to the user.
+   - **`no_task_zone`**: the plan has no task tail. Tell the user materialization was skipped and suggest `/ghs:to-features` to break the plan down by LLM instead.
+   - **`malformed`**: **targeted task-tail rewrite** — materialization failed AFTER approval and archive; regenerating the whole plan is forbidden (it would silently void the passed review). Re-dispatch the designer (same Phase 3 dispatch, subagent_type Plan) with the FULL current plan file inlined as FROZEN plus this appendix appended:
 
-5. Report the final plan location and a summary of review rounds to the user. If `ACCEPTED_WITH_FAIL == true`, explicitly warn the user: "This plan was accepted with unfixed issues (Severe=<X>, Medium=<Y>). These issues are listed in the review report and must be tracked separately." Suggest the next step: use `/ghs:sprint` to break the plan into features for implementation.
+     ```
+     ## IMPORTANT: Targeted Task-Tail Rewrite
+     Your previous task tail could not be parsed by the materializer:
+     <reason from the parser JSON>
+     Rewrite ONLY the task tail (the `### Task` cards) so it conforms to the
+     serialization rules in plan-designer.md. Everything before the first
+     `### Task` heading (design body) is FROZEN — reproduce it verbatim,
+     unchanged. Output the FULL body again between the delimiters, starting at
+     `## Current State`.
+     ```
+
+     On success, concatenate the contract header + new body and overwrite `${PROJECT_DIR}/.ghs/plans/${plan_file}` AND `docs/ghs/plans/${plan_file}` (both copies), then re-run the materializer command above. Still `malformed` after one targeted rewrite → AskUserQuestion with two options: `跳过物化` (the user later runs `/ghs:to-features`) / `再修一次任务节` (repeat this branch, once only).
+
+5. Update status to `approved` (and write `"accepted_with_fail": true` if applicable). Report the archived plan path, feature count, and close with: suggest `/ghs:code` to start implementing the first feature.
 
 ---
 
 ## Key Constraints
 
-1. **One question at a time**: When using AskUserQuestion to follow up with the user, ask exactly one question. Do not move to the next question until the current one is answered.
+1. **One question at a time**: When using AskUserQuestion to follow up with the user, ask exactly one question. Do not move to the next question until the current one is answered. Exception: the Phase 4 builder-question round is a single batched AskUserQuestion (see Phase 4).
 
-2. **Maximum review-revise rounds (soft + hard cap)**: The default soft limit is 5 rounds (`max_rounds`). For straightforward requirements (e.g., adding a single feature, small refactor, < 200 word description with no architectural changes), set `max_rounds` to 2 in the status file to save time.
-
-   Once `round >= max_rounds` is reached (either via Phase 2 FAIL or Phase 3 reject), the dispatcher MUST NOT silently start a new round. The user must explicitly choose one of three options: continue (breach), accept, or abort.
-
-   **Hard cap on breaches**: The number of "Continue revising anyway" breaches is bounded by `MAX_BREACHES` (default `2`, defined in [## Format Recovery](#format-recovery) → **Constants**). When `max_rounds_breaches >= MAX_BREACHES`, the continue option is removed from the menu — the user can only accept or abort. This guarantees the dispatcher will terminate in at most `max_rounds + MAX_BREACHES` rounds regardless of user choices.
-
-3. **Role isolation**:
+2. **Role isolation**:
    - The plan designer cannot communicate directly with the user; all questions are relayed through the dispatcher
    - The plan reviewer cannot communicate directly with the user; all questions are relayed through the dispatcher
    - The plan designer and reviewer do not interact directly; information is exchanged indirectly through files
 
-4. **Files as the sole communication medium**: All information between the three roles is transmitted through files. The dispatcher coordinates via the status file and completion signals from agent outputs.
+3. **Files as the sole communication medium**: All information between the three roles is transmitted through files. The dispatcher coordinates via the status file and completion signals from agent outputs. Files are the single source of the dispatcher's own state: at every branch point, Read status.json first and branch only on the values just read; write a status change in the same turn as the file write it describes (write-through). No deriving dispatcher state from conversation memory.
 
-5. **Reviews must be severity-graded**: Every issue from the reviewer must have a severity label (Severe/Medium/Optimization). Reviews without severity labels are invalid.
+4. **Reviews must be severity-graded**: Every issue from the reviewer must have a severity label (Unwarranted/Severe/Medium/Optimization). Reviews without severity labels are invalid.
 
-6. **Plan designer must understand the project first**: The plan designer must understand the existing project architecture before designing. The context snapshot provides pre-extracted architectural knowledge; the designer reads this first and only falls back to raw files when the snapshot is insufficient. No designing in a vacuum.
+5. **Plan designer must understand the project first**: The plan designer must understand the existing project architecture before designing. The context snapshot provides pre-extracted architectural knowledge; the designer reads this first and only falls back to raw files when the snapshot is insufficient. No designing in a vacuum.
 
 ## Error Handling
 
 - **Subagent failure**: Log the error, notify the user, ask whether to retry
-- **Subagent output format deviation**: Detected via `parse_delimited_output.py` returning `status` "empty" or "malformed", or `verdict == null` for review. On detection, the response is persisted to a post-mortem raw at `<file>.raw` (first attempt) or `<file>.raw.retry<T>` (retry) in the main `.ghs/plans/` directory — see Phase 0.5 / Phase 1 / Phase 2 Handling step 4. Retry once with the [Format Recovery](#format-recovery) appendix. If retry still fails, use AskUserQuestion to let the user decide (retry / accept fallback / abort — see [## User Decision Handling](#user-decision-handling)). **Never silently hang on unparseable output.**
+- **Subagent output format deviation**: Detected via `parse_delimited_output.py` returning `status` "empty" or "malformed", or `verdict == null` for review. On detection, the response is persisted to a post-mortem raw at `<file>.raw` (first attempt) or `<file>.raw.retry<T>` (retry) in the main `.ghs/plans/` directory — see Phase 1 / Phase 3 / Phase 4 Handling step 4. Retry once with the [Format Recovery](#format-recovery) appendix. If retry still fails, use AskUserQuestion to let the user decide (retry / accept fallback / abort — see [## User Decision Handling](#user-decision-handling)). **Never silently hang on unparseable output.**
 - **File read/write failure**: Check paths and permissions, notify the user
 - **User not responding**: Wait, do not proceed automatically
 
@@ -695,15 +699,14 @@ Do you approve this plan?
 When a subagent returns output the parser cannot extract (`status` `empty` / `malformed`, or `verdict == null` for reviews), the dispatcher retries the subagent once with a stronger format reminder appended to the prompt.
 
 **Constants**:
-- `MAX_RETRY = 1` — each subagent call may be re-dispatched at most once. This counter is independent from the review-revise `max_rounds` counter.
-- `MAX_BREACHES = 2` — the maximum number of "Continue revising anyway" breaches the user can opt into after `round >= max_rounds` is reached. Once `max_rounds_breaches >= MAX_BREACHES`, the "Continue revising anyway" option is removed from both Phase 2 FAIL @ max_rounds and Phase 3 reject @ max_rounds menus; the user can only accept or abort. This guarantees the dispatcher terminates in at most `max_rounds + MAX_BREACHES` rounds regardless of user choices. This constant is the **single source of truth** for the hard cap; Phase 2 / Phase 3 / Key Constraints all reference it by name.
+- `MAX_RETRY = 1` — each subagent call may be re-dispatched at most once. Each counter persists in status.json retry_counts and resets to 0 on a successful parse.
 
-**Raw file naming** — post-mortem raw files ONLY exist on the error path (parse failure) or when `keep_raw_on_success: true` is set in status.json. They are NOT written on the happy path by default. Scratch files used for parser input live in `.ghs/plans/.tmp/` and are cleaned up immediately after parse (see Phase 0.5 / Phase 1 / Phase 2 Handling step 4).
+**Raw file naming** — post-mortem raw files ONLY exist on the error path (parse failure) or when `keep_raw_on_success: true` is set in status.json. They are NOT written on the happy path by default. Scratch files used for parser input live in `.ghs/plans/.tmp/` and are cleaned up immediately after parse (see Phase 1 / Phase 3 / Phase 4 Handling step 4).
 - First-attempt failure: `<file>.raw` (i.e. `<plan_file>.raw`, `<review_file>.raw`, `<context_file>.raw`)
 - Retry-T failure: `<file>.raw.retry<T>` (e.g. `<plan_file>.raw.retry1`)
 - Note: Round number is NO LONGER in the filename. Since happy path produces no post-mortem raw, and the normal error path is bounded by `MAX_RETRY=1`, there are at most 2 post-mortem raw files per subagent kind under normal retry (`.raw` + `.raw.retry1`).
 
-  **User-opted retry exception**: If the user picks "Retry once more" in [## User Decision Handling](#user-decision-handling) after `MAX_RETRY` is exhausted, an additional `<file>.raw.retry<T+1>` is written. This path is NOT bounded by `MAX_RETRY` — but it IS bounded by the dispatcher's overall termination guarantee: the user can only retry-format as many times as they keep picking "Retry once more", and the session's max-rounds + breach hard cap (see Key Constraints #2) still bounds total subagent spawns. In practice, post-mortem raw count stays small.
+  **User-opted retry exception**: If the user picks "Retry once more" in [## User Decision Handling](#user-decision-handling) after `MAX_RETRY` is exhausted, an additional `<file>.raw.retry<T+1>` is written. In practice, post-mortem raw count stays small.
 
   **`keep_raw_on_success: true` exception**: When this flag is set in status.json, every successful parse ALSO writes a post-mortem raw at `<file>.raw` (overwriting any prior). Use this only for hard-to-debug sessions.
 
@@ -723,7 +726,7 @@ This time you MUST:
 
 Example (correct):
 <<<PLAN_START>>>
-# My Plan
+## Current State
 ... content ...
 <<<PLAN_END>>>
 PLAN DESIGN COMPLETE
@@ -741,16 +744,16 @@ This time you MUST:
 2. Put ALL review report content between them.
 3. Do NOT wrap the delimiters in a code fence.
 4. Do NOT translate or modify the delimiter strings.
-5. End with the literal completion signal starting with "REVIEW COMPLETE | Verdict: PASS|FAIL | Severe: X Medium: Y Optimization: Z".
+5. End with the literal completion signal starting with "REVIEW COMPLETE | Verdict: PASS|FAIL | Unwarranted: X Severe: Y Medium: Z Optimization: W".
 
 Example (correct):
 <<<REVIEW_START>>>
 ... review report ...
 <<<REVIEW_END>>>
-REVIEW COMPLETE | Verdict: PASS | Severe: 0 Medium: 0 Optimization: 1
+REVIEW COMPLETE | Verdict: PASS | Unwarranted: 0 Severe: 0 Medium: 0 Optimization: 1
 ```
 
-For Context Subagent retries (`--kind context_snapshot`, Phase 0.5):
+For Context Subagent retries (`--kind context_snapshot`, Phase 1):
 ```
 ## IMPORTANT: Previous Output Format Issue
 Your previous response could not be parsed correctly. The delimiters
@@ -771,11 +774,11 @@ consistent with the first attempt.
 
 ## User Decision Handling
 
-When retry is exhausted (`retry_count >= MAX_RETRY`) and the parser still cannot extract usable content, the dispatcher uses AskUserQuestion to let the user decide. The three options and their semantics:
+When retry is exhausted (`retry_counts.<kind> >= MAX_RETRY`) and the parser still cannot extract usable content, the dispatcher uses AskUserQuestion to let the user decide. The three options and their semantics:
 
 | Option | Dispatcher behavior | File side-effects | When available |
 |--------|---------------------|-------------------|----------------|
-| **Retry once more** | Increment `retry_count` (one-shot override past `MAX_RETRY`), re-dispatch the subagent with the [Format Recovery](#format-recovery) appendix | New `<file>.raw.retry<T+1>` (or `<context_file>.raw.retry<T+1>` for Phase 0.5) — round number no longer in filename | Always available |
+| **Retry once more** | Increment `retry_counts.<kind>` (one-shot override past `MAX_RETRY`), re-dispatch the subagent with the [Format Recovery](#format-recovery) appendix | New `<file>.raw.retry<T+1>` (or `<context_file>.raw.retry<T+1>` for Phase 1) — round number no longer in filename | Always available |
 | **Accept the fallback-extracted content** | Take the most recent `fallback_used` content (or the current raw if the user has manually inspected and confirmed it is usable) and write it to the target file with a leading warning comment: `<!-- WARNING: manually accepted after format deviation retry; strategy=<strategy>; warnings=<warnings joined by "; "> -->` | `<file>` written; status advances to the next phase | Only available if at least one prior parse produced `fallback_used`, OR the user explicitly confirms the current raw is acceptable |
 | **Abort this planning session** | Set status to `aborted`, stop all subsequent actions | Any `.raw*` files written so far (post-mortem raw from error path, if any retry happened) are preserved in the main `.ghs/plans/` directory; `.tmp/` scratch is cleaned up by step 4 of the Handling flow (which deletes temp files even on the parse-success path) | Always available |
 

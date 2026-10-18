@@ -28,7 +28,7 @@
 
 3. **Review Feature Status**
    Read `.ghs/features.json` to see:
-   - Current sprint status
+   - Current plan status
    - Completed features
    - In-progress features
    - Pending features
@@ -58,7 +58,7 @@
 
 Choose **ONE** feature per session. Prioritize:
 
-1. Features from current in-progress sprint
+1. Features from current in-progress plan
 2. High-priority pending features with completed dependencies
 3. Features that build on recent work
 
@@ -122,12 +122,12 @@ Perform these checks in order before starting orchestration:
    ```
    Store the output as the absolute project directory.
 
-2. **Check for Uncompleted Sprint**
-   Read `.ghs/features.json` and look for a sprint with status `in_progress` or `planning` that has features with status `pending` or `blocked`.
+2. **Check for Uncompleted Plan**
+   Read `.ghs/features.json` and look for a plan with status `in_progress` or `planning` that has features with status `pending` or `blocked`.
 
-   If no uncompleted sprint exists, exit with:
+   If no uncompleted plan exists, exit with:
    ```
-   No uncompleted sprint found. Run /ghs:sprint first to plan a sprint.
+   No uncompleted plan found. Run /ghs:to-features first to build a plan.
    ```
 
 3. **Review Recent Context** — Read `.ghs/progress.md` for recent work, blockers, and project state.
@@ -151,7 +151,7 @@ Use `parallel_utils.py` to identify ready features and build conflict-free paral
 command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parallel_utils.py \
   --project-dir "<PROJECT_DIR>" \
   --max-parallel 5 \
-  --sprint-id "<SPRING_ID>"
+  --plan-id "<PLAN_ID>"
 ```
 
 Output is JSON with the following structure:
@@ -188,13 +188,13 @@ Total ready features: 8
 Max parallelism: 5
 
 Batch 1 (parallel):
-  - s1-feat-002: Add login page (files: src/auth/login.ts)
-  - s1-feat-003: Add signup page (files: src/auth/signup.ts)
-  - s1-feat-004: Add API client (files: src/api/client.ts)
+  - p1-feat-002: Add login page (files: src/auth/login.ts)
+  - p1-feat-003: Add signup page (files: src/auth/signup.ts)
+  - p1-feat-004: Add API client (files: src/api/client.ts)
 
 Batch 2 (parallel):
-  - s1-feat-005: Connect login to API (files: src/auth/login.ts, src/api/client.ts)
-  - s1-feat-006: Add dashboard (files: src/pages/dashboard.tsx)
+  - p1-feat-005: Connect login to API (files: src/auth/login.ts, src/api/client.ts)
+  - p1-feat-006: Add dashboard (files: src/pages/dashboard.tsx)
 ```
 
 ### Dispatch Phase
@@ -208,8 +208,8 @@ Implement ONE feature for this project.
 This is an isolated task. Disregard prior context, assume nothing, read files fresh, start clean.
 
 ## Your Task
-1. Open `<PROJECT_DIR>/.ghs/features.json`, find your feature by `id == "<feature_id>"` under `sprints[].features[]`. Read its `description`/`acceptance_criteria`/`technical_notes`/`files_affected` — these are your source of truth, not the title.
-2. If the containing sprint has a `plan_ref` field, open that plan file (relative to project root) and read any sections your `technical_notes` references (e.g. "参考 plan §3.3 ..." means read §3.3). If `plan_ref` is missing or the file does not exist, log a one-line warning and proceed with `technical_notes` verbatim.
+1. Open `<PROJECT_DIR>/.ghs/features.json`, find your feature by `id == "<feature_id>"` under `plans[].features[]`. Read its `description`/`acceptance_criteria`/`technical_notes`/`files_affected` — these are your source of truth, not the title.
+2. If the containing plan has a `plan_ref` field, open that plan file (relative to project root) and read any sections your `technical_notes` references (e.g. "参考 plan §3.3 ..." means read §3.3). If `plan_ref` is missing or the file does not exist, log a one-line warning and proceed with `technical_notes` verbatim.
 3. Read `<PROJECT_DIR>/.ghs/progress.md` for recent project context.
 4. Implement the feature following the coding-agent.md guidelines; verify all `acceptance_criteria` are met.
 5. Run lint/build, then make a **single** commit (stage all modified implementation files with `git add`; do NOT commit `.ghs/*` files) with message: `feat(<scope>): <brief description> (Feature: <feature_id>)`.
@@ -223,7 +223,7 @@ This is an isolated task. Disregard prior context, assume nothing, read files fr
 - End with EXACTLY ONE signal: `FEATURE COMPLETE: <feature_id>` or `FEATURE BLOCKED: <feature_id> - <reason>`.
 ```
 
-The orchestrator MUST substitute `<PROJECT_DIR>` (from `resolve_project_dir.py`) and `<feature_id>` (from the batch feature list) into the prompt before spawning. The prompt contains NO inline feature details — the subagent reads them from `.ghs/features.json` per Task step 1. Note: the prompt does NOT contain a `<sprint_id>` placeholder — the subagent locates its feature by `id == "<feature_id>"` across `sprints[].features[]`, so the orchestrator does not need to pass `sprint_id`.
+The orchestrator MUST substitute `<PROJECT_DIR>` (from `resolve_project_dir.py`) and `<feature_id>` (from the batch feature list) into the prompt before spawning. The prompt contains NO inline feature details — the subagent reads them from `.ghs/features.json` per Task step 1. Note: the prompt does NOT contain a `<plan_id>` placeholder — the subagent locates its feature by `id == "<feature_id>"` across `plans[].features[]`, so the orchestrator does not need to pass `plan_id`.
 
 Use the Agent tool to spawn subagents:
 
@@ -248,7 +248,7 @@ For each background subagent that returns:
 
 1. **Capture raw output and save to disk** for post-mortem debugging:
    ```
-   <PROJECT_DIR>/.ghs/parallel/<sprint_id>/<feature_id>.raw.attempt<N>
+   <PROJECT_DIR>/.ghs/parallel/<plan_id>/<feature_id>.raw.attempt<N>
    ```
    `attempt<N>` starts at 1 for the first try within a feature; retries increment N.
 
@@ -259,7 +259,7 @@ For each background subagent that returns:
    ```bash
    command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_completion_signal.py \
      --feature-id <feature_id> \
-     --input-file <PROJECT_DIR>/.ghs/parallel/<sprint_id>/<feature_id>.raw.attempt<N> \
+     --input-file <PROJECT_DIR>/.ghs/parallel/<plan_id>/<feature_id>.raw.attempt<N> \
      --min-length 50
    ```
 
@@ -342,15 +342,15 @@ Subagents already committed their implementation files individually. No further 
 ```markdown
 ## Parallel Orchestration - YYYY-MM-DD
 **Agent**: Coding Agent (Parallel Mode)
-**Sprint**: [Sprint ID]
+**Plan**: [Plan ID]
 **Max Parallelism**: [N]
 
 ### Execution Summary
 | Feature | Status | Result |
 |---------|--------|--------|
-| s1-feat-002 | completed | success |
-| s1-feat-003 | completed | success |
-| s1-feat-004 | blocked | lint errors in src/api/client.ts |
+| p1-feat-002 | completed | success |
+| p1-feat-003 | completed | success |
+| p1-feat-004 | blocked | lint errors in src/api/client.ts |
 
 ### Statistics
 - Total features: 8
@@ -387,7 +387,7 @@ Add entry at **top** of sessions section:
 ```markdown
 ## Session N - YYYY-MM-DD
 **Agent**: Coding Agent
-**Sprint**: [Sprint ID]
+**Plan**: [Plan ID]
 **Feature**: [Feature ID and title]
 
 ### Implementation
@@ -421,7 +421,7 @@ Only update feature status field:
 
 ```json
 {
-  "id": "s1-feat-001",
+  "id": "p1-feat-001",
   "status": "completed"  // or "in_progress"
 }
 ```
@@ -439,9 +439,9 @@ When a feature is marked `blocked`, include a `blocked_reason` field explaining 
 
 ```json
 {
-  "id": "s1-feat-005",
+  "id": "p1-feat-005",
   "status": "blocked",
-  "blocked_reason": "Depends on s1-feat-003 which has lint errors"
+  "blocked_reason": "Depends on p1-feat-003 which has lint errors"
 }
 ```
 

@@ -1,4 +1,4 @@
-# Sprint Agent Reference
+# To-Features Agent Reference
 
 ## Table of Contents
 1. [Workflow](#workflow)
@@ -11,20 +11,20 @@
 ### When Invoked
 
 1. **New Project**: After initialization
-2. **New Sprint**: User requests new iteration
+2. **New Plan**: User requests new iteration
 3. **Requirement Update**: User wants to modify planned features
 
-### Archive Completed Sprints First
+### Archive Completed Plans First
 
-Before creating a new sprint, archive completed sprints:
+Before creating a new plan, archive completed plans:
 
 ```bash
-command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --list --project-dir "<PROJECT_DIR>"      # List completed sprints
-command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --dry-run --project-dir "<PROJECT_DIR>"   # Preview archive
-command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_sprint.py --project-dir "<PROJECT_DIR>"             # Archive
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_plans.py --list --project-dir "<PROJECT_DIR>"      # List completed plans
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_plans.py --dry-run --project-dir "<PROJECT_DIR>"   # Preview archive
+command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_plans.py --project-dir "<PROJECT_DIR>"             # Archive
 ```
 
-Archived sprints move to `.ghs/archived/`.
+Archived plans move to `.ghs/archived/`.
 
 ### Planning Process
 
@@ -32,14 +32,14 @@ Archived sprints move to `.ghs/archived/`.
 
 Break down requirements into categories:
 
-- **Core Features** - Essential for MVP/sprint goal
+- **Core Features** - Essential for MVP/plan goal
 - **Supporting Features** - Enhance core functionality
 - **Technical Enablers** - Infrastructure, refactoring
 
 Context sources:
 - User's high-level requirements
 - Existing `.ghs/features.json`
-- Previous sprint learnings from `.ghs/progress.md`
+- Previous plan learnings from `.ghs/progress.md`
 
 #### Step 2: Create Atomic Features
 
@@ -55,7 +55,7 @@ Each feature must be:
 Categories: `core`, `ui`, `api`, `auth`, `data`, `infra`
 
 Priorities:
-- `high`: Sprint blockers, core functionality
+- `high`: Plan blockers, core functionality
 - `medium`: Important but not blocking
 - `low`: Nice to have, can be deferred
 
@@ -79,7 +79,7 @@ Rules:
 
 ```json
 {
-  "id": "s1-feat-001",
+  "id": "p1-feat-001",
   "category": "core | ui | api | auth | data | infra",
   "priority": "high | medium | low",
   "title": "Short feature title",
@@ -94,7 +94,7 @@ Rules:
 }
 ```
 
-Note: Feature IDs follow the format `s{N}-feat-{NNN}` where `N` matches the parent sprint number and `NNN` is a zero-padded sequential number.
+Note: Feature IDs follow the format `p{N}-feat-{NNN}` where `N` matches the parent plan number and `NNN` is a zero-padded sequential number.
 
 ### Complexity Estimation
 
@@ -107,19 +107,19 @@ Note: Feature IDs follow the format `s{N}-feat-{NNN}` where `N` matches the pare
 Mark dependencies with feature IDs:
 
 ```json
-"dependencies": ["s1-feat-001", "s1-feat-002"]
+"dependencies": ["p1-feat-001", "p1-feat-002"]
 ```
 
 ## File Schemas
 
 ### ID Format Rules
 
-Sprint IDs and feature IDs must follow strict naming conventions for consistency and tooling compatibility:
+Plan IDs and feature IDs must follow strict naming conventions for consistency and tooling compatibility:
 
-- **Sprint ID**: matches `^s\d{1,4}$` — e.g., `s1`, `s2`, `s10`, `s9999`
-- **Feature ID**: matches `^s\d{1,4}-feat-\d{3}$` — e.g., `s1-feat-001`, `s2-feat-010`, `s10-feat-003`
+- **Plan ID**: matches `^p\d{1,4}$` — e.g., `p1`, `p2`, `p10`, `p9999`
+- **Feature ID**: matches `^p\d{1,4}-feat-\d{3}$` — e.g., `p1-feat-001`, `p2-feat-010`, `p10-feat-003`
 
-The sprint number in the feature ID must match its parent sprint. Feature numbers are zero-padded to 3 digits and sequential within each sprint.
+The plan number in the feature ID must match its parent plan. Feature numbers are zero-padded to 3 digits and sequential within each plan.
 
 ### features.json Structure
 
@@ -131,11 +131,10 @@ The sprint number in the feature ID must match its parent sprint. Feature number
     "tech_stack": ["string"],
     "created_at": "YYYY-MM-DD (required)"
   },
-  "sprints": [
+  "plans": [
     {
-      "id": "string (required, unique, format: s{number})",
+      "id": "string (required, unique, format: p{number})",
       "name": "string (required)",
-      "goal": "string",
       "status": "planning | in_progress | completed | on_hold",
       "created_at": "YYYY-MM-DD",
       "features": [ /* feature objects */ ]
@@ -148,7 +147,7 @@ The sprint number in the feature ID must match its parent sprint. Feature number
 }
 ```
 
-### Sprint Status Values
+### Plan Status Values
 
 | Status | Description |
 |--------|-------------|
@@ -191,16 +190,16 @@ Before writing, resolve the project directory with `command python3 ${CLAUDE_PLU
 
 ### Update features.json
 
-Add new sprint with structured features following schema above.
+Add new plan with structured features following schema above.
 
 ### Update progress.md
 
 Add planning session entry at top:
 
 ```markdown
-## Sprint Planning - YYYY-MM-DD
-**Agent**: Sprint Agent
-**Sprint**: [Sprint ID and Name]
+## Feature Planning - YYYY-MM-DD
+**Agent**: To-Features Agent
+**Plan**: [Plan ID and Name]
 
 ### Requirements Received
 - [User's requirement summary]
@@ -211,7 +210,7 @@ Add planning session entry at top:
 - Medium priority: N
 - Low priority: N
 
-### Sprint Goal
+### Plan Goal
 [Clear goal statement]
 
 ### Implementation Order
@@ -224,13 +223,13 @@ Add planning session entry at top:
 
 ### Summary Output Format
 
-Display this summary in the terminal and ask the user to confirm before finalizing the sprint:
+Display this summary in the terminal and ask the user to confirm before finalizing the plan:
 
 ```markdown
-## Sprint Planning Complete
+## Feature Planning Complete
 
-### Sprint: [Name]
-**Goal**: [Sprint goal]
+### Plan: [Name]
+**Goal**: [Plan goal]
 
 ### Feature Summary
 - Total features: N
@@ -257,5 +256,5 @@ After displaying the summary, ask the user to confirm. No git commit needed — 
 1. **Never Remove Features** - Only add or change status
 2. **Unique IDs** - Each feature must have a unique ID
 3. **Respect Tech Stack** - Features must be achievable
-4. **Balance Sprint** - Mix of complexity levels
+4. **Balance Plan** - Mix of complexity levels
 5. **Document Decisions** - Explain prioritization rationale

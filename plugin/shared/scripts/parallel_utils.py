@@ -65,14 +65,14 @@ def detect_cycles(
 
 
 def get_ready_features(
-    features_data: Dict, sprint_id: Optional[str] = None
+    features_data: Dict, plan_id: Optional[str] = None
 ) -> Tuple[List[Dict], List[Dict], List[List[str]], List[str]]:
     """Identify features whose dependencies are all completed.
 
     Args:
         features_data: Parsed features.json content.
-        sprint_id: Optional sprint ID to filter by. If None, uses the
-                   first active sprint found.
+        plan_id: Optional plan ID to filter by. If None, uses the
+                 first active plan found.
 
     Returns:
         Tuple of:
@@ -82,27 +82,27 @@ def get_ready_features(
         - cycles: List of detected circular dependency chains.
         - cycle_feature_ids: Set of feature IDs involved in any cycle.
     """
-    sprints = features_data.get("sprints", [])
-    sprint = None
+    plans = features_data.get("plans", [])
+    plan = None
 
-    if sprint_id:
-        for s in sprints:
-            if s.get("id") == sprint_id:
-                sprint = s
+    if plan_id:
+        for s in plans:
+            if s.get("id") == plan_id:
+                plan = s
                 break
     else:
-        # Use the first in_progress sprint, or the first sprint
-        for s in sprints:
+        # Use the first in_progress plan, or the first plan
+        for s in plans:
             if s.get("status") == "in_progress":
-                sprint = s
+                plan = s
                 break
-        if sprint is None and sprints:
-            sprint = sprints[0]
+        if plan is None and plans:
+            plan = plans[0]
 
-    if sprint is None:
+    if plan is None:
         return [], [], [], []
 
-    features = sprint.get("features", [])
+    features = plan.get("features", [])
 
     # Build index and completed set
     feature_index = {f.get("id", ""): f for f in features if f.get("id")}
@@ -236,10 +236,10 @@ def main():
         help="Maximum features per batch (default: 5)",
     )
     parser.add_argument(
-        "--sprint-id",
-        "-s",
+        "--plan-id",
+        "-i",
         default=None,
-        help="Sprint ID to analyze (default: first active sprint)",
+        help="Plan ID to analyze (default: first active plan)",
     )
     args = parser.parse_args()
 
@@ -297,7 +297,7 @@ def main():
         return 1
 
     ready, skipped, cycles, cycle_feature_ids = get_ready_features(
-        features_data, sprint_id=args.sprint_id
+        features_data, plan_id=args.plan_id
     )
 
     batches = build_parallel_batches(ready, max_parallel=args.max_parallel)

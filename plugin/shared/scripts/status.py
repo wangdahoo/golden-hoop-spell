@@ -25,7 +25,7 @@ def read_progress_md(filepath: Path, last_n=5):
         content = f.read()
 
     # Split on any H2 heading so that all session types are captured:
-    # ## Session, ## Sprint Planning, ## Parallel Orchestration, etc.
+    # ## Session, ## Feature Planning, ## Parallel Orchestration, etc.
     sections = re.split(r"^## ", content, flags=re.MULTILINE)
     # Filter out template/non-session sections — actual sessions always contain a date.
     sessions = [s for s in sections if re.search(r"\d{4}-\d{2}-\d{2}", s.split("\n", 1)[0])]
@@ -72,28 +72,28 @@ def main():
         print(f"📅 Created: {project.get('created_at', 'Unknown')}")
         print()
 
-        sprints = features_data.get("sprints", [])
+        plans = features_data.get("plans", [])
 
-        if not sprints:
-            print("⚠️  No sprints defined yet. Run Sprint Agent to plan features.")
+        if not plans:
+            print("⚠️  No plans defined yet. Run /ghs:to-features to plan features.")
             return 0
 
-        for sprint in sprints:
-            sprint_id = sprint.get("id", "unknown")
-            sprint_name = sprint.get("name", "Unnamed Sprint")
-            sprint_status = sprint.get("status", "planning")
-            features = sprint.get("features", [])
+        for plan in plans:
+            plan_id = plan.get("id", "unknown")
+            plan_name = plan.get("name", "Unnamed Plan")
+            plan_status = plan.get("status", "planning")
+            features = plan.get("features", [])
 
             status_emoji = {
                 "planning": "📋",
                 "in_progress": "🚀",
                 "completed": "✅",
                 "on_hold": "⏸️",
-            }.get(sprint_status, "❓")
+            }.get(plan_status, "❓")
 
-            print(f"{status_emoji} Sprint: {sprint_name} ({sprint_id})")
-            print(f"   Status: {sprint_status}")
-            print(f"   Goal: {sprint.get('goal', 'No goal defined')}")
+            print(f"{status_emoji} Plan: {plan_name} ({plan_id})")
+            print(f"   Status: {plan_status}")
+            print(f"   Plan doc: {plan.get('plan_ref', 'n/a')}")
             print()
 
             status_counts = format_feature_status(features)

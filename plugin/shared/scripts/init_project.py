@@ -139,7 +139,7 @@ def main():
             print(f"  {gitignore_file.name} already contains .ghs")
 
         print()
-        print("Next: Run Sprint Agent to define features.")
+        print("Next: Run /ghs:to-features to define features.")
 
     except Exception as e:
         print(f"Error: {e}")
