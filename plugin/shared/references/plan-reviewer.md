@@ -64,6 +64,17 @@ test; command anchors are runnable. Risky unspecified inputs must carry
 per task against the codebase for reachability (does that test/command exist or is it
 created by the task itself?).
 
+Parseability is part of completeness: the task tail is machine-parsed, so every
+structural field — the task heading, the field labels, every anchor line — must carry
+ASCII punctuation only. A full-width colon `：` where the parser expects an ASCII colon
+(after the task number, in a field label, as an anchor's subject/criterion separator, or
+inside a `[UNDEFINED-INPUT]` anchor) makes the criterion empty or the field missing at
+materialization time, and the card is rejected as `malformed` — even though the criterion
+reads as complete prose to a human. Inspect each anchor's separator character
+explicitly; a full-width punctuation hit in a structural field is a Medium finding
+(fix: replace with the ASCII form, e.g. `：` → `:`). Such findings block PASS like any
+other Medium.
+
 ## Severity Labels
 
 | Level | Definition | Fix direction |
@@ -101,7 +112,9 @@ block. Every finding carries: location (section/task), one-line issue, fix direc
 {...}
 
 ## Anchor Check
-{missing / empty-criteria list per task. "All tasks have 1-5 non-empty anchors." }
+{missing / empty-criteria list per task, plus any full-width punctuation found in
+ structural fields (ASCII-punctuation check). "All tasks have 1-5 non-empty anchors,
+ all ASCII-parseable." }
 
 ## Builder Questions (pile 3 only)
 {numbered ≤5; each: question + 2-4 mutually exclusive options + recommended default.
