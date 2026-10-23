@@ -332,7 +332,14 @@ Do NOT attempt to write any files. Just output the content between the delimiter
 
    > **Copy this command verbatim, only replacing the `<placeholders>`.**
 
-   Path: `<PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.context.raw` (the `.tmp/` subdirectory is created once in Phase 0 init step 4).
+   Path: `<PROJECT_DIR>/.ghs/plans/.tmp/<run-id>.context.raw` (the `.tmp/` subdirectory is created once in Phase 0 init step 4).
+
+   **`<run-id>` naming rule (all phases)**: `<run-id>` is ANY identifier that stays stable
+   within THIS planning run — recommended: the `{date}-{slug}` file identifier, suffixed
+   with a scratch counter when one round writes several scratch sets (e.g.
+   `2026-10-19-auth-rework-s1`). Never derive it from the host session: the dispatcher
+   cannot reliably know the host session identifier, so any naming rule that requires it
+   is unexecutable.
 
 3. Invoke the parser helper via `--input-file` (shell never sees the response content — zero injection surface):
 
@@ -341,13 +348,13 @@ Do NOT attempt to write any files. Just output the content between the delimiter
    ```bash
    command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_delimited_output.py \
      --kind context_snapshot \
-     --input-file <PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.context.raw \
-     --output-file <PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.context.result.json \
+     --input-file <PROJECT_DIR>/.ghs/plans/.tmp/<run-id>.context.raw \
+     --output-file <PROJECT_DIR>/.ghs/plans/.tmp/<run-id>.context.result.json \
      --min-length 100
    ```
    Note: for context_snapshot, **do NOT pass `--completion-signal`** — there is no signal line for context snapshots, so the flag is omitted entirely (parser uses `default=None`).
 
-4. Read the JSON result file from step 3 with the Read tool (`<session_id>.context.result.json`) — do NOT consume the parser's stdout, which only prints a one-line ASCII pointer under `--output-file`; the file is the payload channel and stays exact UTF-8 even on GBK consoles. **Delete both temporary files from steps 2-3** (the raw scratch and the result JSON — whether parse succeeded or failed; persistence decisions are separate). Then branch on `status`:
+4. Read the JSON result file from step 3 with the Read tool (`<run-id>.context.result.json`) — do NOT consume the parser's stdout, which only prints a one-line ASCII pointer under `--output-file`; the file is the payload channel and stays exact UTF-8 even on GBK consoles. **Delete both temporary files from steps 2-3** (the raw scratch and the result JSON — whether parse succeeded or failed; persistence decisions are separate). Then branch on `status`:
 
    - **`ok`** or **`fallback_used`**:
      - Write `content` to the target file (`<context_file>`). For `fallback_used`, prepend the warning comment `<!-- WARNING: extracted via fallback strategy: <strategy>; warnings: <warnings joined by "; "> -->`.
@@ -393,7 +400,12 @@ only the frozen header.
    "以上是本次计划的范围契约，有无需要修正的地方？" Options: "确认冻结" / "需要修正"。
    If the user requests corrections, revise in place and re-confirm (still the same
    single question). If Phase 0/1 already included a clarification AskUserQuestion round,
-   ride this confirmation on that round's final exchange instead of adding a new one.
+   ride this confirmation on that round's final exchange instead of adding a new one —
+   UNLESS investigation (reading project files, verifying paths, measuring scope for the
+   goals) intervenes between that clarification round and the finished draft. Splitting
+   into a separate confirmation round is allowed in that case: the merged exchange is an
+   optimization for the no-investigation path, not a hard cap — never force-merge into a
+   round that confirms a draft the user has not actually seen.
 3. **Freeze = Write.** Create `{PROJECT_DIR}/.ghs/plans/{plan_file}` with EXACTLY this
    content (template verbatim; headings are fixed English tokens — parsers depend on
    them; body text follows the repo language policy):
@@ -515,7 +527,7 @@ If the requirement spans multiple independent subsystems with no shared contract
 
    > **Copy this command verbatim, only replacing the `<placeholders>`.**
 
-   Path: `<PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.plan.raw` (the `.tmp/` subdirectory is created once in Phase 0 init step 4).
+   Path: `<PROJECT_DIR>/.ghs/plans/.tmp/<run-id>.plan.raw` (the `.tmp/` subdirectory is created once in Phase 0 init step 4; `<run-id>` per the naming rule in Phase 1 Handling step 2).
 
 4. Invoke the parser helper via `--input-file` (shell never sees the response content — zero injection surface):
 
@@ -524,13 +536,13 @@ If the requirement spans multiple independent subsystems with no shared contract
    ```bash
    command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_delimited_output.py \
      --kind plan \
-     --input-file <PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.plan.raw \
-     --output-file <PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.plan.result.json \
+     --input-file <PROJECT_DIR>/.ghs/plans/.tmp/<run-id>.plan.raw \
+     --output-file <PROJECT_DIR>/.ghs/plans/.tmp/<run-id>.plan.result.json \
      --completion-signal "PLAN DESIGN COMPLETE" \
      --min-length 300
    ```
 
-5. Read the JSON result file from step 4 with the Read tool (`<session_id>.plan.result.json`) — do NOT consume the parser's stdout, which only prints a one-line ASCII pointer under `--output-file`; the file is the payload channel and stays exact UTF-8 even on GBK consoles. **Delete both temporary files from steps 3-4** (the raw scratch and the result JSON — whether parse succeeded or failed; persistence decisions are separate). Then branch on `status`:
+5. Read the JSON result file from step 4 with the Read tool (`<run-id>.plan.result.json`) — do NOT consume the parser's stdout, which only prints a one-line ASCII pointer under `--output-file`; the file is the payload channel and stays exact UTF-8 even on GBK consoles. **Delete both temporary files from steps 3-4** (the raw scratch and the result JSON — whether parse succeeded or failed; persistence decisions are separate). Then branch on `status`:
 
    - **`ok`** or **`fallback_used`**:
      - On `ok`/`fallback_used`, **the dispatcher overwrites `{plan_file}` with contract header + body**: Read the existing file for the contract header — everything before the first `### Task ` heading (the Phase 2 frozen content; physically never routed through the designer); the body is the parsed `content`; if the body starts with `# {Plan Title}` or a duplicated contract header, strip it down to `## Current State`. On `fallback_used`, prepend the warning comment after the contract header, before the body.
@@ -612,18 +624,18 @@ go in the report's Builder Questions section.
 
 **Handling**:
 
-1. Write the response verbatim to `<PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.review.raw`, parse with:
+1. Write the response verbatim to `<PROJECT_DIR>/.ghs/plans/.tmp/<run-id>.review.raw` (`<run-id>` per the naming rule in Phase 1 Handling step 2), parse with:
 
    ```bash
    command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parse_delimited_output.py \
      --kind review \
-     --input-file <PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.review.raw \
-     --output-file <PROJECT_DIR>/.ghs/plans/.tmp/<session_id>.review.result.json \
+     --input-file <PROJECT_DIR>/.ghs/plans/.tmp/<run-id>.review.raw \
+     --output-file <PROJECT_DIR>/.ghs/plans/.tmp/<run-id>.review.result.json \
      --completion-signal "REVIEW COMPLETE" \
      --min-length 150
    ```
 
-2. Read the JSON result file from step 1 with the Read tool (`<session_id>.review.result.json`) — do NOT consume the parser's stdout, which only prints a one-line ASCII pointer under `--output-file`; the file is the payload channel and stays exact UTF-8 even on GBK consoles. Then delete both temp files (the raw scratch and the result JSON), and branch on the JSON (`retry_counts.review` for format retries, per Format Recovery; post-mortem raw rules unchanged):
+2. Read the JSON result file from step 1 with the Read tool (`<run-id>.review.result.json`) — do NOT consume the parser's stdout, which only prints a one-line ASCII pointer under `--output-file`; the file is the payload channel and stays exact UTF-8 even on GBK consoles. Then delete both temp files (the raw scratch and the result JSON), and branch on the JSON (`retry_counts.review` for format retries, per Format Recovery; post-mortem raw rules unchanged):
 
    - **`ok`/`fallback_used`, verdict PASS or FAIL**: write `content` to `<review_file>` (prepend the fallback warning comment if `fallback_used`), overwrite. If `keep_raw_on_success: true`, also write the raw. Then reset the (possibly bumped) format counter: `command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/update_plan_status.py --file <status_file> --set retry_counts.review=0`.
    - **`empty`/`malformed`/`verdict == null`**: per Format Recovery (retry once with the appendix; then User Decision Handling).
@@ -671,8 +683,22 @@ contract. Assemble (≤ ~40 lines total) and ask via AskUserQuestion:
 | 评审残留 | Latest `<review_file>`: signal counts + surviving finding titles (one line each; "无" if PASS with none) |
 | Assumptions | The `<plan_file>` Assumptions section, item by item (omit this block if "None") |
 | 文件 | Plan / Review 两个路径 |
+| 修订状态 | "无" if the reviewed text is exactly what is being approved; otherwise "本轮修订未经评审" plus a one-line summary of each post-review revision (rule below) |
+
+**修订状态 rule (unreviewed-revision disclosure)**: if ANY revision was applied after the
+most recent review pass without a review covering it — a reject-driven revision from the
+`reject_count < 3` path below (designer-dispatched or dispatcher direct edit), the final
+no-review fix (`final_fix_pending`), or the builder-question touch-up — the approval
+surface MUST say "本轮修订未经评审" and summarize what each such revision changed, one
+line per revision. The user is approving the plan AS REVISED, so they must see that the
+revised text never went back through the reviewer; presenting an unreviewed revision as
+if the PASS verdict covered it is forbidden.
 
 Question: "是否批准该计划？" Options: `批准（归档并物化）` / `拒绝（说明修改方向）` / `中止`。
+AskUserQuestion text hygiene: question and option text are PLAIN TEXT — no control
+characters, no ANSI escapes, no emoji or decorative special symbols. Strip them from the
+surface content before asking; polluted option text has rendered the choice unreadable
+in practice.
 
 - **approve** → Phase 6。
 - **reject**: Read status.json first. Persist the incremented count (the value you just read + 1) and the transition in ONE call:
@@ -683,7 +709,9 @@ Question: "是否批准该计划？" Options: `批准（归档并物化）` / `�
     --set reject_count=<N+1> --set status=revising
   ```
 
-  - `reject_count < 3`: (status already persisted as `revising` above) ONE targeted revision from the user's feedback (Phase 3 template + feedback appendix, no model review), concatenate and overwrite the plan file, persist `pending_approval` (`update_plan_status.py --set status=pending_approval`), then reassemble the approval surface.
+  - `reject_count < 3`: (status already persisted as `revising` above) ONE targeted revision from the user's feedback — still exactly one revision per reject — then persist `pending_approval` (`update_plan_status.py --set status=pending_approval`) and reassemble the approval surface. Two execution forms, chosen by the feedback's nature:
+    - **Dispatcher direct edit (mechanical feedback only)**: when the feedback is pure deletion (remove the sections/lines the user names) or mechanical text correction (reword/replace text without adding content or changing any decision, task, or anchor semantics), apply it directly with Edit — no designer dispatch needed. This edit IS the revision for this reject round, and it stays unreviewed, so the reassembled approval surface must disclose it via the 修订状态 rule above. Boundary: feedback that adds content, introduces or changes a decision, adds/removes/retimes tasks, or alters anchor semantics is NOT mechanical and falls to the designer form — this hatch must never become a channel for the dispatcher to redesign the plan.
+    - **Designer dispatch (everything else)**: Phase 3 template + feedback appendix (no model review), concatenate and overwrite the plan file.
   - `reject_count >= 3`: **suggest contract replay** (a soft suggestion, not a hard gate): AskUserQuestion — `契约重放` / `再修订一次` / `中止`. `再修订一次` follows the same status discipline as the <3 path (revising → pending_approval, write-through). The user may also initiate a replay at any time.
 - **contract replay** (back-edge Phase 5 → Phase 2): overwrite the same `{plan_file}` in place — the dispatcher re-runs Phase 2 (draft a new contract header + user confirmation + Write overwrite); the old body is voided and deleted wholesale (it mapped the old contract); then persist the full reset in one call; then a brand-new Phase 3. `<review_file>` needs no deletion — the next full review overwrites it.
 
@@ -723,20 +751,27 @@ Question: "是否批准该计划？" Options: `批准（归档并物化）` / `�
 
    - **`parsed`**: features written. Report plan id and feature ids to the user.
    - **`no_task_zone`**: the plan has no task tail. Tell the user materialization was skipped and suggest `/ghs:to-features` to break the plan down by LLM instead.
-   - **`malformed`**: **targeted task-tail rewrite** — materialization failed AFTER approval and archive; regenerating the whole plan is forbidden (it would silently void the passed review). Re-dispatch the designer (same Phase 3 dispatch, subagent_type Plan) with the FULL current plan file inlined as FROZEN plus this appendix appended:
+   - **`malformed`**: materialization failed AFTER approval and archive; regenerating the whole plan is forbidden (it would silently void the passed review). Two escalating responses, picked by the failure's nature:
 
-     ```
-     ## IMPORTANT: Targeted Task-Tail Rewrite
-     Your previous task tail could not be parsed by the materializer:
-     <reason from the parser JSON>
-     Rewrite ONLY the task tail (the `### Task` cards) so it conforms to the
-     serialization rules in plan-designer.md. Everything before the first
-     `### Task` heading (design body) is FROZEN — reproduce it verbatim,
-     unchanged. Output the FULL body again between the delimiters, starting at
-     `## Current State`.
-     ```
+     - **Dispatcher direct fix — character-level mechanical deviations ONLY.** When the parser `reason`/`warnings` point at character-level deviations — full-width vs half-width punctuation (e.g. `：` where the materializer requires `:`), full-width spaces, stray whitespace — the dispatcher fixes EXACTLY those characters directly with Edit, on BOTH copies. Hard boundary: single-character substitution/deletion that grep can verify (e.g. `grep -n '：'` against the plan file lists the offending lines); adding, moving, deleting, or rewriting any content, heading, or anchor is forbidden, and so is any semantic change — this hatch exists so a stray full-width colon does not burn a designer round, never as a reformatting channel. Report the exact characters fixed to the user (plain text). Then re-run the materializer command above; if STILL `malformed` (or grep still finds offending characters), fall through to the targeted rewrite.
+     - **Targeted task-tail rewrite — everything else.** Re-dispatch the designer (same Phase 3 dispatch, subagent_type Plan) with the FULL current plan file inlined as FROZEN plus this appendix appended:
 
-     On success, concatenate the contract header + new body and overwrite `${PROJECT_DIR}/.ghs/plans/${plan_file}` AND `docs/ghs/plans/${plan_file}` (both copies), then re-run the materializer command above. Still `malformed` after one targeted rewrite → AskUserQuestion with two options: `跳过物化` (the user later runs `/ghs:to-features`) / `再修一次任务节` (repeat this branch, once only).
+       ```
+       ## IMPORTANT: Targeted Task-Tail Rewrite
+       Your previous task tail could not be parsed by the materializer:
+       <reason from the parser JSON>
+       Rewrite ONLY the task tail (the `### Task` cards) so it conforms to the
+       serialization rules in plan-designer.md. Everything before the first
+       `### Task` heading (design body) is FROZEN — reproduce it verbatim,
+       unchanged. Output the FULL body again between the delimiters, starting at
+       `## Current State`.
+       ```
+
+       On success, concatenate the contract header + new body and overwrite `${PROJECT_DIR}/.ghs/plans/${plan_file}` AND `docs/ghs/plans/${plan_file}` (both copies), then re-run the materializer command above. Still `malformed` after one targeted rewrite → AskUserQuestion with two options: `跳过物化` (the user later runs `/ghs:to-features`) / `再修一次任务节` (repeat this branch, once only).
+     - **Archive-commit sync (explicit step, once the materializer returns `parsed`)**: the archived copy committed in step 3 is now stale. Both copies already carry the fixed text (the direct fix edits both in place; the rewrite overwrites both) — amend the archive commit so the committed history matches the materialized text, instead of improvising a fix-up commit:
+       ```bash
+       cd ${PROJECT_DIR} && git add docs/ghs/plans/${plan_file} && git commit --amend --no-edit
+       ```
 
 5. Persist the final status (append `--set accepted_with_fail=true` to the same call when `ACCEPTED_WITH_FAIL == true`):
 
@@ -752,7 +787,7 @@ Question: "是否批准该计划？" Options: `批准（归档并物化）` / `�
 
 ## Key Constraints
 
-1. **One question at a time**: When using AskUserQuestion to follow up with the user, ask exactly one question. Do not move to the next question until the current one is answered. Exception: the Phase 4 builder-question round is a single batched AskUserQuestion (see Phase 4).
+1. **One question at a time**: When using AskUserQuestion to follow up with the user, ask exactly one question. Do not move to the next question until the current one is answered. Exception: the Phase 4 builder-question round is a single batched AskUserQuestion (see Phase 4). Every AskUserQuestion — approval surface included — uses PLAIN TEXT for the question and every option: no control characters, no ANSI escapes, no emoji or decorative special symbols (they have polluted option text in practice); strip them before asking.
 
 2. **Role isolation**:
    - The plan designer cannot communicate directly with the user; all questions are relayed through the dispatcher
@@ -780,7 +815,7 @@ When a subagent returns output the parser cannot extract (`status` `empty` / `ma
 - `MAX_RETRY = 1` — each subagent call may be re-dispatched at most once. Each counter persists in status.json retry_counts and resets to 0 on a successful parse.
 - Retry counters are persisted ONLY via `command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/update_plan_status.py --file <status_file> --bump-retry <plan|review|context_snapshot>` (never hand-edit the JSON and never use inline `python -c` — see [State Tracking](#state-tracking)).
 
-**Raw file naming** — post-mortem raw files ONLY exist on the error path (parse failure) or when `keep_raw_on_success: true` is set in status.json. They are NOT written on the happy path by default. Scratch files (parser input raw + parser result JSON) live in `.ghs/plans/.tmp/` and are cleaned up immediately after parse (Phase 1 Handling step 4, Phase 3 Handling step 5, Phase 4 Handling step 2).
+**Raw file naming** — post-mortem raw files ONLY exist on the error path (parse failure) or when `keep_raw_on_success: true` is set in status.json. They are NOT written on the happy path by default. Scratch files (parser input raw + parser result JSON) live in `.ghs/plans/.tmp/` and are cleaned up immediately after parse (Phase 1 Handling step 4, Phase 3 Handling step 5, Phase 4 Handling step 2); their names follow the `<run-id>` naming rule defined in Phase 1 Handling step 2 — stable within this run, never derived from the host session.
 - First-attempt failure: `<file>.raw` (i.e. `<plan_file>.raw`, `<review_file>.raw`, `<context_file>.raw`)
 - Retry-T failure: `<file>.raw.retry<T>` (e.g. `<plan_file>.raw.retry1`)
 - Note: Round number is NO LONGER in the filename. Since happy path produces no post-mortem raw, and the normal error path is bounded by `MAX_RETRY=1`, there are at most 2 post-mortem raw files per subagent kind under normal retry (`.raw` + `.raw.retry1`).
