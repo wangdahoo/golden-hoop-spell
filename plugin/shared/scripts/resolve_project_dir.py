@@ -17,6 +17,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from ghs_compat import force_utf8_stdio
+
 GHS_DIR = ".ghs"
 MARKER_FILES = ["features.json", "progress.md"]
 
@@ -48,6 +50,8 @@ def find_project_dir(start_dir: Path) -> "Path | None":
 
 
 def main():
+    force_utf8_stdio()
+
     parser = argparse.ArgumentParser(
         description="Resolve the ghs project directory"
     )

@@ -13,6 +13,7 @@ No pytest dependency. Uses only the standard unittest module.
 """
 
 import json
+import os
 import subprocess
 import sys
 import unittest
@@ -28,14 +29,25 @@ FEATURE_ID = "p3-feat-001"
 OTHER_ID = "s3-feat-002"
 
 
-def run_cli(args, stdin_text=None):
-    """Run the helper as a subprocess and return (returncode, parsed_json, stderr)."""
+def run_cli(args, stdin_text=None, env_extra=None):
+    """Run the helper as a subprocess and return (returncode, parsed_json, stderr).
+
+    Output is always decoded as UTF-8 (errors=replace) regardless of the
+    parent console encoding, so UTF-8 fidelity of the child output can be
+    asserted. env_extra updates the child environment (e.g. PYTHONIOENCODING).
+    """
     cmd = [sys.executable, str(SCRIPT_DIR / "parse_completion_signal.py")] + args
+    env = os.environ.copy()
+    if env_extra:
+        env.update(env_extra)
     proc = subprocess.run(
         cmd,
         input=stdin_text,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
     )
     parsed = None
     if proc.stdout.strip():
@@ -385,6 +397,40 @@ class ParseSignalCliTests(unittest.TestCase):
         )
         self.assertEqual(rc, 1, f"stderr: {stderr}")
         self.assertEqual(parsed["status"], "unknown")
+
+
+class GbkStdoutTests(unittest.TestCase):
+    """Pins the Windows console fix: non-ASCII output survives a GBK stdout.
+
+    With PYTHONIOENCODING=gbk a script without force_utf8_stdio() would
+    either raise UnicodeEncodeError on the Chinese reason text or emit GBK
+    bytes; both fail this test (run_cli decodes as UTF-8, so GBK bytes turn
+    into mojibake instead of the literal Chinese text).
+    """
+
+    def test_cli_chinese_reason_survives_gbk_stdout(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".txt", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("无法继续推进,依赖未就绪且控制台编码异常。\n")
+            f.write(f"FEATURE BLOCKED: {FEATURE_ID} - 依赖缺失且测试无法编译\n")
+            path = f.name
+        try:
+            rc, parsed, stderr = run_cli(
+                ["--feature-id", FEATURE_ID, "--input-file", path],
+                env_extra={"PYTHONIOENCODING": "gbk"},
+            )
+            self.assertEqual(rc, 0, f"stderr: {stderr}")
+            self.assertNotIn(
+                "UnicodeEncodeError", stderr, "child must not crash on GBK stdout"
+            )
+            self.assertIsNotNone(parsed, f"stdout was not valid JSON: {stderr!r}")
+            self.assertEqual(parsed["status"], "blocked")
+            self.assertEqual(parsed["strategy"], "exact_signal")
+            self.assertIn("依赖缺失", parsed["reason"])
+        finally:
+            Path(path).unlink()
 
 
 if __name__ == "__main__":

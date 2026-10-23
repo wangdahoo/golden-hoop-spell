@@ -47,6 +47,8 @@ import re
 import sys
 from pathlib import Path
 
+from ghs_compat import force_utf8_stdio
+
 
 # Default minimum raw-input length. The completion-signal protocol itself is a
 # single line, but a near-empty response (no commit log, no description) is
@@ -365,6 +367,8 @@ def _read_input(args) -> str:
 
 
 def main() -> int:
+    force_utf8_stdio()
+
     parser = argparse.ArgumentParser(
         description="Parse completion signal from background subagent output."
     )
