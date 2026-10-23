@@ -41,14 +41,25 @@ LONG_BODY = (
 assert len(LONG_BODY) >= 200, f"LONG_BODY too short: {len(LONG_BODY)}"
 
 
-def run_cli(args, stdin_text=None):
-    """Run the helper as a subprocess and return (returncode, parsed_json_or_None, stderr)."""
+def run_cli(args, stdin_text=None, env_extra=None):
+    """Run the helper as a subprocess.
+
+    Returns (returncode, parsed_json_or_None, stderr). Output is always
+    decoded as UTF-8 (errors=replace) regardless of the parent console
+    encoding, so UTF-8 fidelity of the child output can be asserted.
+    """
     cmd = [sys.executable, str(SCRIPT_DIR / "parse_delimited_output.py")] + args
+    env = os.environ.copy()
+    if env_extra:
+        env.update(env_extra)
     proc = subprocess.run(
         cmd,
         input=stdin_text,
+        env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     parsed = None
     if proc.stdout.strip():
@@ -595,6 +606,149 @@ class ParseHelperInputSourceTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIsNotNone(parsed)
         self.assertEqual(parsed["status"], "ok")
+
+
+class ParseHelperOutputFileTests(unittest.TestCase):
+    # ------------------------------------------------------------------
+    # --output-file — payload goes to the file, stdout keeps a pointer line
+    # ------------------------------------------------------------------
+    def test_output_file_writes_utf8_json_and_pointer_line(self):
+        body = LONG_BODY + "\n中文正文段落:状态机在 Phase 4 收敛,判据含非 ASCII 字符。\n"
+        raw = f"<<<PLAN_START>>>\n{body}\n<<<PLAN_END>>>\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = Path(tmp) / "result.json"
+            rc, parsed, stderr = run_cli(
+                [
+                    "--kind", "plan",
+                    "--input-string", raw,
+                    "--min-length", "200",
+                    "--output-file", str(out_path),
+                ]
+            )
+            self.assertEqual(rc, 0, stderr)
+            # stdout is a one-line ASCII pointer, never the JSON payload.
+            self.assertIsNone(parsed, "stdout must not carry the result JSON")
+            self.assertTrue(out_path.exists())
+            file_text = out_path.read_text(encoding="utf-8")
+            result = json.loads(file_text)
+            self.assertEqual(result["status"], "ok")
+            self.assertEqual(result["strategy"], "exact_delimiter")
+            self.assertIn("中文正文段落", result["content"])
+            # The result on disk is literal UTF-8, never \\u escapes.
+            self.assertIn("中文正文段落", file_text)
+
+    def test_output_file_stdout_is_single_ascii_pointer_line(self):
+        raw = f"<<<PLAN_START>>>\n{LONG_BODY}\n<<<PLAN_END>>>\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = Path(tmp) / "result.json"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT_DIR / "parse_delimited_output.py"),
+                    "--kind", "plan",
+                    "--input-string", raw,
+                    "--min-length", "200",
+                    "--output-file", str(out_path),
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            # Single line, ASCII prefix; the path tail may legitimately contain
+            # non-ASCII (user-profile dirs), which force_utf8_stdio emits as UTF-8.
+            self.assertEqual(proc.stdout.strip().count("\n"), 0)
+            self.assertTrue(
+                proc.stdout.strip().startswith(
+                    "parse_delimited_output: result written to "
+                ),
+                f"unexpected pointer line: {proc.stdout!r}",
+            )
+            # The JSON payload itself never crosses stdout.
+            self.assertNotIn('"status"', proc.stdout)
+
+    def test_output_file_written_even_on_malformed(self):
+        raw = "<thinking>only thinking</thinking>\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = Path(tmp) / "result.json"
+            rc, parsed, stderr = run_cli(
+                [
+                    "--kind", "plan",
+                    "--input-string", raw,
+                    "--min-length", "200",
+                    "--output-file", str(out_path),
+                ]
+            )
+            self.assertEqual(rc, 1)
+            self.assertTrue(out_path.exists())
+            result = json.loads(out_path.read_text(encoding="utf-8"))
+            self.assertEqual(result["status"], "malformed")
+            self.assertEqual(result["strategy"], "none")
+
+    def test_output_file_creates_missing_parent_dir(self):
+        raw = f"<<<PLAN_START>>>\n{LONG_BODY}\n<<<PLAN_END>>>\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = Path(tmp) / "nested" / "dir" / "result.json"
+            rc, _, stderr = run_cli(
+                [
+                    "--kind", "plan",
+                    "--input-string", raw,
+                    "--min-length", "200",
+                    "--output-file", str(out_path),
+                ]
+            )
+            self.assertEqual(rc, 0, stderr)
+            self.assertTrue(out_path.exists())
+
+    def test_output_file_gbk_environment_payload_survives(self):
+        """GBK stdout (PYTHONIOENCODING=gbk) → file payload still exact UTF-8."""
+        body = LONG_BODY + "\n中文判据:重试计数落盘。\n"
+        raw = f"<<<PLAN_START>>>\n{body}\n<<<PLAN_END>>>\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = Path(tmp) / "result.json"
+            rc, _, stderr = run_cli(
+                [
+                    "--kind", "plan",
+                    "--input-string", raw,
+                    "--min-length", "200",
+                    "--output-file", str(out_path),
+                ],
+                env_extra={"PYTHONIOENCODING": "gbk"},
+            )
+            self.assertEqual(rc, 0, stderr)
+            self.assertNotIn(
+                "UnicodeEncodeError", stderr,
+                "child must not crash on GBK stdout",
+            )
+            result = json.loads(out_path.read_text(encoding="utf-8"))
+            self.assertIn("中文判据", result["content"])
+
+    # ------------------------------------------------------------------
+    # backward compatibility — no --output-file keeps stdout JSON
+    # ------------------------------------------------------------------
+    def test_without_output_file_stdout_json_unchanged(self):
+        raw = f"<<<PLAN_START>>>\n{LONG_BODY}\n<<<PLAN_END>>>\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = Path(tmp) / "unused.json"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT_DIR / "parse_delimited_output.py"),
+                    "--kind", "plan",
+                    "--input-string", raw,
+                    "--min-length", "200",
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn('"status"', proc.stdout)
+            parsed = json.loads(proc.stdout)
+            self.assertEqual(parsed["status"], "ok")
+            self.assertFalse(out_path.exists())
 
 
 class ParseHelperMinLengthBoundaryTests(unittest.TestCase):
