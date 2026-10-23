@@ -1,6 +1,7 @@
 ---
 name: ghs:to-features
 description: "Turn a plan document or raw requirements into atomic, implementable features in `.ghs/features.json`. Also use to modify existing plans — add features, change priorities, or replan."
+disable-model-invocation: true
 ---
 
 # Feature Planning
@@ -166,3 +167,41 @@ For detailed schemas, category definitions, and more examples, read `${CLAUDE_PL
 3. **Respect Tech Stack** — Features must be achievable with the project's tech
 4. **Balance Plan** — Mix of complexity levels
 5. **Document Decisions** — Explain prioritization rationale
+
+## Closing Steps
+
+Finish every run of this skill with BOTH closing steps. They are mandatory: every ghs skill sets `disable-model-invocation: true` in its frontmatter, so the model never auto-loads the next skill — after this skill finishes, these pointers are the only channel that routes the user to the next stage of the workflow.
+
+### Step 1: Append the progress.md session entry
+
+Add ONE entry at the **top** of the `## Sessions` section in `<PROJECT_DIR>/.ghs/progress.md`, following the field structure of the Session Template built into that file. The Step 6 planning entry records the plan itself; this session entry records the session and its routing outcome — keep both:
+
+```markdown
+## Session N - YYYY-MM-DD
+**Agent**: To-Features Agent
+**Plan**: [Plan ID if applicable]
+**Feature**: [Feature ID if applicable]
+
+### Work Completed
+- [What was done in this session]
+
+### Tests Performed
+- [How the results were verified]
+
+### Issues Encountered
+- [Any blockers, bugs, or challenges]
+
+### Decisions Made
+- [Architectural or design choices]
+
+### Next Steps
+- [Recommended next actions]
+```
+
+`N` continues the numbering of existing `## Session N` entries.
+
+### Step 2: Give the user the next-step guidance
+
+End the session by telling the user exactly what to run next. Never invoke the next ghs skill yourself — with model invocation disabled, every ghs skill is triggered only by an explicit user command:
+
+- Next step: `/ghs:code` — start implementing the first pending feature of the new plan

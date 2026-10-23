@@ -2,6 +2,7 @@
 name: ghs:code
 description: "Implement features from the current plan. Supports single-feature mode (default, one feature per session) and parallel mode (--parallel for independent features). This is the primary development workflow for ghs-managed projects."
 argument-hint: "[--parallel] [--max-parallel=N]"
+disable-model-invocation: true
 ---
 
 # Feature Implementation
@@ -88,7 +89,7 @@ Check all acceptance criteria:
    - `completed` — all acceptance criteria met, tests pass
    - `blocked` — cannot proceed, document reason in `blocked_reason`
 
-3. Update `.ghs/progress.md` with session summary at the **top** of the sessions section:
+3. Update `.ghs/progress.md` with session summary at the **top** of the sessions section. The entry follows the Session Template field structure built into `.ghs/progress.md` (the five sections `### Work Completed` / `### Tests Performed` / `### Issues Encountered` / `### Decisions Made` / `### Next Steps`), with two coding-specific sections added:
 
 ```markdown
 ## Session N - YYYY-MM-DD
@@ -96,9 +97,8 @@ Check all acceptance criteria:
 **Plan**: [Plan ID]
 **Feature**: [Feature ID and title]
 
-### Implementation
+### Work Completed
 - [What was implemented]
-- [Key decisions made]
 
 ### Files Changed
 - path/to/file.ts - [brief description]
@@ -108,6 +108,9 @@ Check all acceptance criteria:
 
 ### Issues Encountered
 - [Any blockers or bugs found]
+
+### Decisions Made
+- [Key decisions made]
 
 ### Acceptance Criteria Status
 - [x] Criterion 1
@@ -318,3 +321,18 @@ For detailed schemas and more examples:
 ## Red Flags — Stop and Fix
 
 Stop immediately if you encounter: build errors, lint errors, failing tests, app won't start, previously working feature broken, or uncommitted changes from previous session. Fix these before proceeding.
+
+## Closing Steps
+
+Finish every run of this skill with BOTH closing steps. They are mandatory: every ghs skill sets `disable-model-invocation: true` in its frontmatter, so the model never auto-loads the next skill — after this skill finishes, these pointers are the only channel that routes the user to the next stage of the workflow.
+
+### Step 1: Append the progress.md session entry
+
+The session summary written at Step 5 of End of Session (single mode) or the parallel orchestration summary (parallel mode) fulfills this step — do not append a duplicate entry. It must follow the Session Template field structure built into `.ghs/progress.md`: the five sections `### Work Completed` / `### Tests Performed` / `### Issues Encountered` / `### Decisions Made` / `### Next Steps` are required, with the coding-specific sections (`### Files Changed`, `### Acceptance Criteria Status`) kept as additions.
+
+### Step 2: Give the user the next-step guidance
+
+End the session by telling the user exactly what to run next. Never invoke the next ghs skill yourself — with model invocation disabled, every ghs skill is triggered only by an explicit user command:
+
+- Next step: `/ghs:status` — review plan/feature completion before picking up the next feature
+- When every feature of the active plan is completed: `/ghs:archive` — archive the plan's feature groups to clean up active state

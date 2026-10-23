@@ -2,6 +2,7 @@
 name: ghs:plan
 description: "Produce an executable technical plan through a contract-driven pipeline: the dispatcher freezes a scope contract with the user, a designer subagent writes the plan body against it, a reviewer enforces contract mapping, and approval materializes tasks into features automatically. Use whenever the user asks to create a technical plan, design a solution, or think through how to implement something before coding."
 argument-hint: "[requirement description]"
+disable-model-invocation: true
 ---
 
 # Technical Plan Generation
@@ -869,3 +870,55 @@ The AskUserQuestion prompt must:
 
 - `${CLAUDE_PLUGIN_ROOT}/shared/references/plan-designer.md` — Detailed instructions and plan structure guide for the plan designer
 - `${CLAUDE_PLUGIN_ROOT}/shared/references/plan-reviewer.md` — Detailed review standards and review report format for the plan reviewer
+
+## Closing Steps
+
+Finish every run of this skill with BOTH closing steps (including aborted and replay
+runs). They are mandatory: every ghs skill sets `disable-model-invocation: true` in its
+frontmatter, so the model never auto-loads the next skill — after this skill finishes,
+these pointers are the only channel that routes the user to the next stage of the
+workflow.
+
+### Step 1: Append the progress.md session entry
+
+Add ONE entry at the **top** of the `## Sessions` section in
+`<PROJECT_DIR>/.ghs/progress.md`, following the field structure of the Session Template
+built into that file:
+
+```markdown
+## Session N - YYYY-MM-DD
+**Agent**: Plan Dispatcher
+**Plan**: [Plan ID if applicable]
+**Feature**: [Feature ID if applicable]
+
+### Work Completed
+- [What was done in this session]
+
+### Tests Performed
+- [How the results were verified]
+
+### Issues Encountered
+- [Any blockers, bugs, or challenges]
+
+### Decisions Made
+- [Architectural or design choices]
+
+### Next Steps
+- [Recommended next actions]
+```
+
+`N` continues the numbering of existing `## Session N` entries. This entry is required on
+EVERY exit path — approved, aborted, contract-replay exit, and rejection-driven stop —
+otherwise a full plan run leaves zero trace in the session log.
+
+### Step 2: Give the user the next-step guidance
+
+End the session by telling the user exactly what to run next. Never invoke the next ghs
+skill yourself — with model invocation disabled, every ghs skill is triggered only by an
+explicit user command:
+
+- Next step: `/ghs:code` — implement the first feature materialized from the approved plan
+- If materialization was skipped (`no_task_zone`): `/ghs:to-features` — break the plan
+  into features with LLM planning instead
+- If the session was aborted or stopped at the reject cap: no command — the user decides
+  whether to fix the requirement and run `/ghs:plan` again
