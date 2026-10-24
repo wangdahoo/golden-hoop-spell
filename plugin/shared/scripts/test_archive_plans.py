@@ -21,6 +21,8 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
+import archive_plans  # noqa: E402
+
 FEATURES = {
     "project": {"name": "demo", "description": "演示项目描述", "created_at": "2026-10-18"},
     "plans": [
@@ -94,6 +96,60 @@ class ArchiveKeepsLiteralChineseTests(unittest.TestCase):
             self.assertIn("进行中特性", active_text)
             self.assertIn("演示项目描述", active_text)
             self.assertNotIn("\\u", active_text)
+
+
+class ArchiveFolderSanitizationTests(unittest.TestCase):
+    """Plan names containing Windows-illegal characters must not crash
+    archiving (dogfood incident: NotADirectoryError on ':'). Folder names
+    are sanitized; archived plan DATA keeps the original name verbatim."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.project = Path(self._tmp.name)
+        self.archived = self.project / "archived"
+        self.archived.mkdir(parents=True)
+
+    def test_folder_name_sanitized_data_preserved(self):
+        original_name = 'dogfood 修复:Windows/编码 "quoted" 计划'
+        plan = {
+            "id": "px",
+            "name": original_name,
+            "status": "completed",
+            "features": [
+                {"id": "px-feat-001", "title": "t", "status": "completed"}
+            ],
+        }
+        features_data = {"project": {"name": "demo"}, "plans": [plan]}
+
+        feat_path, _prog_path = archive_plans.archive_plan_files(
+            plan, features_data, self.project, self.archived
+        )
+
+        folder = feat_path.parent
+        self.assertTrue(folder.exists())
+        self.assertTrue(folder.name.startswith("px_"))
+        for ch in '\\/:*?"<>|':
+            self.assertNotIn(ch, folder.name)
+        # Archived DATA keeps the original name verbatim.
+        archived = json.loads(feat_path.read_text(encoding="utf-8"))
+        self.assertEqual(archived["archived_plan"]["name"], original_name)
+
+    def test_empty_name_falls_back_to_plan_id(self):
+        plan = {
+            "id": "py",
+            "name": '///:***',
+            "status": "completed",
+            "features": [
+                {"id": "py-feat-001", "title": "t", "status": "completed"}
+            ],
+        }
+        features_data = {"project": {"name": "demo"}, "plans": [plan]}
+        feat_path, _prog_path = archive_plans.archive_plan_files(
+            plan, features_data, self.project, self.archived
+        )
+        # All chars stripped -> sanitized part empty -> folder falls back to plan id.
+        self.assertTrue(feat_path.parent.name.startswith("py_"))
 
 
 if __name__ == "__main__":

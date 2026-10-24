@@ -44,6 +44,20 @@ def create_archive_structure(project_dir: Path) -> Path:
     return archived_path
 
 
+# Windows-illegal filename characters + ASCII control chars.
+_ILLEGAL_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+
+
+def sanitize_filename_component(raw: str) -> str:
+    """Make a plan name safe for use in an archive folder name.
+
+    Strips Windows-illegal characters and ASCII control chars, replaces
+    spaces with underscores, lowercases. May return an empty string —
+    callers fall back to the plan id.
+    """
+    return _ILLEGAL_FILENAME_CHARS.sub("", raw.replace(" ", "_")).lower()
+
+
 def archive_plan_files(
     plan: Dict, features_data: Dict, project_dir: Path, archived_path: Path
 ) -> Tuple[Path, Path]:
@@ -53,10 +67,11 @@ def archive_plan_files(
         Tuple of (archived_features_path, archived_progress_path)
     """
     plan_id = plan.get("id", "unknown")
-    plan_name = plan.get("name", "unnamed").replace(" ", "_").lower()
+    plan_name = sanitize_filename_component(plan.get("name", ""))
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    archive_folder = archived_path / f"{plan_id}_{plan_name}_{timestamp}"
+    # Empty sanitized name (e.g. name was all illegal chars) falls back to plan id.
+    archive_folder = archived_path / f"{plan_id}_{plan_name or plan_id}_{timestamp}"
     archive_folder.mkdir(parents=True, exist_ok=True)
 
     archive_features = archive_folder / "features.json"
