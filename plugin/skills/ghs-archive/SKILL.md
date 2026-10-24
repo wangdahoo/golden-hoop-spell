@@ -54,9 +54,17 @@ No git commit needed — `.ghs/` tracking files are local metadata (gitignored b
 
 ## If No Completed Plans
 
-If there are no completed plans, tell the user. They may need to:
-- Mark the plan as completed (all features done)
-- Or use `/ghs:force-archive` if they want to archive regardless of status
+If there are no completed plans, probe each active plan first — the plan status may simply be stale (all features done, status never flipped):
+
+1. For each plan in `.ghs/features.json`, run:
+   ```bash
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/update_features.py \
+     --file <PROJECT_DIR>/.ghs/features.json --plan-state <plan_id>
+   ```
+2. If a plan reports `"can_complete": true` but the plan status is not `completed`, use AskUserQuestion:「计划 <plan_id> 全部特性已完成但状态未翻转，是否标记为 completed 并继续归档？」On confirm, run `--set-plan <plan_id> --status completed`, then re-run Step 1 (`archive_plans.py --list`) and continue the normal flow.
+3. If every remaining plan still has pending/in_progress/blocked features, tell the user. They may need to:
+   - Complete the remaining features first (`/ghs:code`)
+   - Or use `/ghs:force-archive` if they want to archive regardless of status
 
 ## Closing Steps
 
