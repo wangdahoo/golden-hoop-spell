@@ -227,10 +227,10 @@ For each background subagent that returns:
         - 计算 `intersection = set(expected_files) ∩ set(actual_files)`。
         - 如果 `intersection` 为空（即所有 commit 加起来一个期望文件都没碰），**不要标记 feature 完成**，触发 Format Recovery retry，appendix 中加一句：`Your commit did not touch any file listed in this feature's files_affected in features.json. Did you read features.json to find your feature's expected files?`。retry 后仍空则走 User Decision Handling。**此分支不写 features.json。**
         - 如果 `intersection` 非空（或 sanity check 走 skip 分支），进入步骤 2。
-     2. Update `.ghs/features.json` for `<feature_id>` with `status: "completed"`. Run lint/build to verify code quality. Verify acceptance criteria. Proceed to next feature.
+     2. Mark the feature completed via the helper: `command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/update_features.py --file <PROJECT_DIR>/.ghs/features.json --set-feature <feature_id> --status completed`. Run lint/build to verify code quality. Verify acceptance criteria. Proceed to next feature.
 
      **备注**：`dispatch_start_iso` 是 orchestrator 在 Dispatch Phase spawn 该 subagent 那一刻记录的 ISO 时间戳（`datetime.now(timezone.utc).isoformat()`），用于时间窗 git log 查询，覆盖 subagent 可能的多 commit。
-   - **`blocked`**: Update `.ghs/features.json` with `status: "blocked"` and `blocked_reason: <reason from JSON>`. Proceed to next feature.
+   - **`blocked`**: Mark blocked via the helper: `update_features.py --set-feature <feature_id> --status blocked --blocked-reason "<reason from JSON>"`. Proceed to next feature.
    - **`unknown`** with `retry_count < MAX_RETRY (=1)`: Increment `retry_count`, re-dispatch the subagent with the original prompt plus the [Format Recovery](#format-recovery) appendix for completion signals. Save the next raw response to `<feature_id>.raw.attempt<N+1>` and return to step 2.
    - **`unknown`** with `retry_count >= MAX_RETRY`: Use AskUserQuestion per [## User Decision Handling](#user-decision-handling). **Never silently hang on an unparseable response.**
 
@@ -319,8 +319,8 @@ When retry is exhausted (`retry_count >= MAX_RETRY`) and the parser still cannot
 | Option | Dispatcher behavior | File side-effects | When available |
 |--------|---------------------|-------------------|----------------|
 | **Retry once more** | Increment `retry_count` (one-shot override past `MAX_RETRY`), re-dispatch the subagent with the [Format Recovery](#format-recovery) appendix | New `<feature_id>.raw.attempt<N+1>` | Always available |
-| **Manually mark as completed** | Update `.ghs/features.json` for the feature with `status: "completed"`. Note in `.ghs/progress.md` that the feature was "manually marked after format deviation retry" | `.ghs/features.json` written; `.ghs/progress.md` annotated | Always available — but only choose this if you have manually verified the implementation (commit log + file diff) |
-| **Manually mark as blocked** | Update `.ghs/features.json` with `status: "blocked"` and a `blocked_reason` you supply. Note in `.ghs/progress.md` | `.ghs/features.json` written; `.ghs/progress.md` annotated | Always available |
+| **Manually mark as completed** | Run `update_features.py --set-feature <feature_id> --status completed`. Note in `.ghs/progress.md` that the feature was "manually marked after format deviation retry" | `.ghs/features.json` written; `.ghs/progress.md` annotated | Always available — but only choose this if you have manually verified the implementation (commit log + file diff) |
+| **Manually mark as blocked** | Run `update_features.py --set-feature <feature_id> --status blocked --blocked-reason "<your reason>"`. Note in `.ghs/progress.md` | `.ghs/features.json` written; `.ghs/progress.md` annotated | Always available |
 | **Abort this feature, continue with others** | Leave `.ghs/features.json` for this feature at `status: "pending"`. Note the abort decision in `.ghs/progress.md`. Continue with other features in the batch | `.ghs/features.json` unchanged for this feature; `.ghs/progress.md` annotated | Always available (parallel mode only) |
 
 The AskUserQuestion prompt must:
