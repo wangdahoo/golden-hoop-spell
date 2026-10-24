@@ -66,6 +66,10 @@ def detect_cycles(
     return cycles
 
 
+class AmbiguousPlanError(ValueError):
+    """Raised when no plan_id is given and features.json holds multiple plans."""
+
+
 def get_ready_features(
     features_data: Dict, plan_id: Optional[str] = None
 ) -> Tuple[List[Dict], List[Dict], List[List[str]], List[str]]:
@@ -73,8 +77,8 @@ def get_ready_features(
 
     Args:
         features_data: Parsed features.json content.
-        plan_id: Optional plan ID to filter by. If None, uses the
-                 first active plan found.
+        plan_id: Optional plan ID to filter by. If None, exactly one plan
+                 is required (AmbiguousPlanError otherwise).
 
     Returns:
         Tuple of:
@@ -93,12 +97,15 @@ def get_ready_features(
                 plan = s
                 break
     else:
-        # Use the first in_progress plan, or the first plan
-        for s in plans:
-            if s.get("status") == "in_progress":
-                plan = s
-                break
-        if plan is None and plans:
+        # No plan_id given: exactly one plan is unambiguous; multiple plans
+        # must be a hard error so a silent plans[0] guess can never pick
+        # the wrong plan (dogfood incident: user asked for p2, got p1).
+        if len(plans) > 1:
+            plan_ids = ", ".join(str(p.get("id", "?")) for p in plans)
+            raise AmbiguousPlanError(
+                f"multiple plans present ({plan_ids}); pass --plan-id explicitly"
+            )
+        if plans:
             plan = plans[0]
 
     if plan is None:
@@ -241,7 +248,7 @@ def main():
         "--plan-id",
         "-i",
         default=None,
-        help="Plan ID to analyze (default: first active plan)",
+        help="Plan ID to analyze (required when features.json contains multiple plans)",
     )
     force_utf8_stdio()
     args = parser.parse_args()
@@ -302,9 +309,13 @@ def main():
         sys.stdout.write("\n")
         return 1
 
-    ready, skipped, cycles, cycle_feature_ids = get_ready_features(
-        features_data, plan_id=args.plan_id
-    )
+    try:
+        ready, skipped, cycles, cycle_feature_ids = get_ready_features(
+            features_data, plan_id=args.plan_id
+        )
+    except AmbiguousPlanError as e:
+        print(f"parallel_utils: error: {e}", file=sys.stderr)
+        return 2
 
     batches = build_parallel_batches(ready, max_parallel=args.max_parallel)
 
