@@ -85,11 +85,25 @@ Check all acceptance criteria:
    git commit -m "feat(<scope>): <description> (Feature: <feature-id>)"
    ```
 
-2. Update the feature status in `.ghs/features.json` (only change `status` field):
+2. Update the feature status via the helper (script-only, Windows-safe — NEVER hand-edit `.ghs/features.json`, NEVER use inline `python -c`; same rationale as `update_plan_status.py` in ghs-plan):
+   ```bash
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/update_features.py \
+     --file <PROJECT_DIR>/.ghs/features.json \
+     --set-feature <feature_id> --status completed
+   ```
    - `completed` — all acceptance criteria met, tests pass
-   - `blocked` — cannot proceed, document reason in `blocked_reason`
+   - `blocked` — cannot proceed; append `--blocked-reason "<reason>"`
 
-3. Update `.ghs/progress.md` with session summary at the **top** of the sessions section. The entry follows the Session Template field structure built into `.ghs/progress.md` (the five sections `### Work Completed` / `### Tests Performed` / `### Issues Encountered` / `### Decisions Made` / `### Next Steps`), with two coding-specific sections added:
+3. **Plan completion check** — run:
+   ```bash
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/update_features.py \
+     --file <PROJECT_DIR>/.ghs/features.json --plan-state <plan_id>
+   ```
+   - `"can_complete": true` → use AskUserQuestion:「该计划下全部特性已完成，是否将计划标记为 completed？」On confirm run `--set-plan <plan_id> --status completed`; on decline keep `in_progress`.
+   - `false` → do NOT flip; report `counts` and `blocked_ids` to the user.
+   Include the outcome (including "kept in_progress") in the session entry's Next Steps.
+
+4. Update `.ghs/progress.md` with session summary at the **top** of the sessions section. The entry follows the Session Template field structure built into `.ghs/progress.md` (the five sections `### Work Completed` / `### Tests Performed` / `### Issues Encountered` / `### Decisions Made` / `### Next Steps`), with two coding-specific sections added:
 
 ```markdown
 ## Session N - YYYY-MM-DD
@@ -136,7 +150,7 @@ When invoked with `--parallel`, implement multiple independent features concurre
 
 1. **Identify ready features and build batches**: Use `parallel_utils.py` to get ready features and conflict-free batches:
    ```bash
-   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parallel_utils.py --project-dir "<PROJECT_DIR>" --max-parallel <N>
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parallel_utils.py --project-dir "<PROJECT_DIR>" --plan-id <plan_id> --max-parallel <N>
    ```
    The script outputs JSON with `ready_features`, `batches`, `skipped`, and any `cycles` detected. Use the `batches` output directly for dispatch.
 
@@ -224,8 +238,21 @@ For each background subagent that returns:
 
 Subagents already committed their implementation files individually. No further git commits needed — the orchestrator only updates local tracking files.
 
-1. Update `.ghs/features.json` — completed features get `status: "completed"`, blocked get `status: "blocked"`
-2. Add parallel orchestration summary to top of `.ghs/progress.md` sessions section
+1. For each parsed result, update the feature status via the helper (script-only — NEVER hand-edit `.ghs/features.json`, NEVER inline `python -c`):
+   ```bash
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/update_features.py \
+     --file <PROJECT_DIR>/.ghs/features.json \
+     --set-feature <feature_id> --status completed
+   ```
+   Use `--status blocked --blocked-reason "<reason>"` for blocked results.
+2. **Plan completion check** — after all features in the plan are marked, run:
+   ```bash
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/update_features.py \
+     --file <PROJECT_DIR>/.ghs/features.json --plan-state <plan_id>
+   ```
+   - `"can_complete": true` → use AskUserQuestion:「该计划下全部特性已完成，是否将计划标记为 completed？」On confirm run `--set-plan <plan_id> --status completed`; on decline keep `in_progress`.
+   - `false` → do NOT flip; report `counts` (list `blocked_ids` if any) to the user.
+3. Add parallel orchestration summary to top of `.ghs/progress.md` sessions section, recording the plan-completion outcome (including "kept in_progress") in Next Steps
 
 ### Parallel Error Handling
 
