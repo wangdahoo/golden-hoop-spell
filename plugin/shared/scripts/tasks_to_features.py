@@ -2,9 +2,8 @@
 """Materialize a plan document's task tail into features.json.
 
 Parses the frozen contract header (## Global Constraints) and the task-card
-tail (### Task {N} blocks) from an approved plan document, appends a plan
-object with deterministically derived features to .ghs/features.json, and
-appends a minimal planning entry to .ghs/progress.md.
+tail (### Task {N} blocks) from an approved plan document and appends a plan
+object with deterministically derived features to .ghs/features.json.
 
 Three-state routing (stdout JSON):
     parsed        -> features written
@@ -26,6 +25,8 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
+
+from ghs_compat import force_utf8_stdio
 
 TASK_HEADING_RE = re.compile(r"^### Task (\d+): (.+)$", re.MULTILINE)
 PLAN_NUM_RE = re.compile(r"^p(\d+)$")
@@ -184,35 +185,13 @@ def build_features(cards: list, constraints: list, plan_id: str) -> list:
     return features
 
 
-def append_progress_entry(progress_path: Path, plan_id: str, count: int, plan_ref: str):
-    marker = "## Feature Planning"
-    today = datetime.now().strftime("%Y-%m-%d")
-    entry = (
-        f"{marker} - {today}\n"
-        f"**Agent**: Plan Materializer\n"
-        f"**Plan**: {plan_id} (source: {plan_ref})\n"
-        f"**Features**: {count} task(s) materialized\n"
-    )
-    content = progress_path.read_text(encoding="utf-8") if progress_path.exists() else ""
-    lines = content.splitlines(keepends=True)
-    insert_at = len(lines)
-    for i, line in enumerate(lines):
-        if line.rstrip("\n").startswith("## Sessions"):
-            insert_at = i + 1
-            # Skip a trailing comment line right after the heading (template marker).
-            if insert_at < len(lines) and lines[insert_at].strip().startswith("<!--"):
-                insert_at += 1
-            break
-    lines.insert(insert_at, "\n" + entry)
-    progress_path.write_text("".join(lines), encoding="utf-8")
-
-
 def emit(payload: dict, exit_code: int) -> int:
     print(json.dumps(payload, ensure_ascii=False))
     return exit_code
 
 
 def main() -> int:
+    force_utf8_stdio()
     parser = argparse.ArgumentParser(
         description="Materialize a plan document's task tail into features.json"
     )
@@ -224,7 +203,6 @@ def main() -> int:
     project_dir = Path(args.project_dir).resolve()
     plan_file = Path(args.plan_file).resolve()
     features_path = project_dir / ".ghs" / "features.json"
-    progress_path = project_dir / ".ghs" / "progress.md"
 
     if not plan_file.exists():
         print(f"tasks_to_features: error: plan file not found: {plan_file}", file=sys.stderr)
@@ -276,8 +254,6 @@ def main() -> int:
     data.setdefault("metadata", {})["last_updated"] = datetime.now().strftime("%Y-%m-%d")
     with open(features_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-
-    append_progress_entry(progress_path, plan_id, len(cards), plan_ref)
 
     return emit({
         "status": "parsed",

@@ -92,7 +92,7 @@ def run_cli(project_dir, plan_file):
         sys.executable, str(SCRIPT_DIR / "tasks_to_features.py"),
         "--project-dir", str(project_dir), "--plan-file", str(plan_file),
     ]
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
     parsed = json.loads(proc.stdout) if proc.stdout.strip() else None
     return proc.returncode, parsed, proc.stderr
 
@@ -197,12 +197,15 @@ class TasksToFeaturesTests(unittest.TestCase):
         self.assertEqual(data["plans"][0]["name"], "重构会话刷新逻辑以消除过期 token 崩溃")
 
     def test_10_progress_entry(self):
+        # No planning entry is appended: progress.md must stay byte-identical
+        # across materialization.
         plan = write_plan(self.project, SAMPLE_PLAN)
-        run_cli(self.project, plan)
-        prog = (self.project / ".ghs" / "progress.md").read_text(encoding="utf-8")
-        self.assertIn("## Feature Planning -", prog)
-        self.assertIn("p1", prog.split("## Feature Planning -", 1)[1].split("##", 1)[0])
-        self.assertLess(prog.index("## Feature Planning -"), prog.index("<!-- new entries above -->"))
+        prog = self.project / ".ghs" / "progress.md"
+        before = prog.read_bytes()
+        code, out, err = run_cli(self.project, plan)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out["status"], "parsed")
+        self.assertEqual(prog.read_bytes(), before)
 
     def test_11_light_lane_constraints_stop_at_task_tail(self):
         body = """# Light Plan
@@ -239,7 +242,7 @@ Fix the login crash.
             proc = subprocess.run(
                 [sys.executable, str(SCRIPT_DIR / "tasks_to_features.py"),
                  "--project-dir", str(self.project), "--plan-file", str(outside)],
-                capture_output=True, text=True,
+                capture_output=True, text=True, encoding="utf-8",
             )
             self.assertEqual(proc.returncode, 2)
             self.assertEqual(proc.stdout.strip(), "")
@@ -253,7 +256,7 @@ Fix the login crash.
         proc = subprocess.run(
             [sys.executable, str(SCRIPT_DIR / "tasks_to_features.py"),
              "--project-dir", str(self.project), "--plan-file", str(plan)],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8",
         )
         self.assertEqual(proc.returncode, 2)
         self.assertEqual(proc.stdout.strip(), "")
