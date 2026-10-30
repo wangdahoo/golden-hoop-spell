@@ -24,7 +24,10 @@
    ```bash
    git log --oneline -10
    ```
-   Read `.ghs/progress.md` to understand previous sessions. This step is mandatory — it provides the context from prior sessions that enables continuity across context windows.
+   Reconstruct prior-session state from these recovery sources:
+   - **Primary**: the `git log` output above plus `.ghs/features.json` (feature statuses and `blocked_reason` — reviewed in detail at step 3)
+   - **Parallel interruptions**: raw subagent outputs preserved at `.ghs/parallel/<plan_id>/<feature_id>.raw.attempt<N>`
+   - `.ghs/progress.md` is an optional narrative reference (session summaries for background reading; not required for recovery)
 
 3. **Review Feature Status**
    Read `.ghs/features.json` to see:
@@ -130,7 +133,7 @@ Perform these checks in order before starting orchestration:
    No uncompleted plan found. Run /ghs:to-features first to build a plan.
    ```
 
-3. **Review Recent Context** — Read `.ghs/progress.md` for recent work, blockers, and project state.
+3. **Review Recent Context** (optional) — `.ghs/progress.md` may be consulted for recent work, blockers, and project state; it is a narrative reference, not a recovery requirement.
 
 4. **Verify Clean Working Tree**
    ```bash

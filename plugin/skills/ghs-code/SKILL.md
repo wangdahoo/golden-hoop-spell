@@ -38,7 +38,10 @@ The project must have an active plan with pending features. If not, tell the use
    ```bash
    git log --oneline -10
    ```
-   Read `.ghs/progress.md` to understand previous sessions.
+   Reconstruct prior-session state from these recovery sources:
+   - **Primary**: the `git log` output above plus `.ghs/features.json` (feature statuses and `blocked_reason` — reviewed in detail at step 4)
+   - **Parallel interruptions**: raw subagent outputs preserved at `.ghs/parallel/<plan_id>/<feature_id>.raw.attempt<N>`
+   - `.ghs/progress.md` is an optional narrative reference (session summaries for background reading; not required for recovery)
 
 3. **Validate project structure**:
    ```bash
