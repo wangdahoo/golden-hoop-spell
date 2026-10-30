@@ -7,13 +7,23 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import os
 import unittest
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from eval_pipeline import load_cases, run_audit, verify_workdir  # noqa: E402
+import eval_pipeline  # noqa: E402
+from eval_pipeline import (  # noqa: E402
+    CodexExecAdapter,
+    HostRun,
+    load_cases,
+    run_audit,
+    verify_workdir,
+    _process_metrics,
+    run_bench,
+)
 
 
 PROJECT = {
@@ -322,6 +332,199 @@ class EvalPipelineCaseTests(unittest.TestCase):
             self.assertIsNone(outcome.verifier_exit_code)
             self.assertEqual(outcome.output_tail, "")
             self.assertEqual(len(outcome.artifact_errors), 1)
+
+
+class _FakeCompleted:
+    returncode = 0
+    stdout = b""
+    stderr = b""
+
+
+class BenchRunnerTests(unittest.TestCase):
+    def _write_case(self, root, name, verify_exit=0, fixture_files=None):
+        d = root / name
+        (d / "fixture").mkdir(parents=True)
+        (d / "case.json").write_text(json.dumps({
+            "schema_version": 1, "name": name, "title": f"Example {name}",
+        }), encoding="utf-8")
+        (d / "brief.md").write_text("Fix the bug.\n", encoding="utf-8")
+        (d / "verify.py").write_text(
+            f"import sys; sys.exit({verify_exit})\n", encoding="utf-8",
+        )
+        (d / "expected_artifacts.json").write_text(json.dumps({
+            "schema_version": 1,
+            "artifacts": [{"path": "calc.py", "sha256": None}],
+        }), encoding="utf-8")
+        files = fixture_files if fixture_files is not None else {"calc.py": "ok\n"}
+        for path, content in files.items():
+            (d / "fixture" / path).write_text(content, encoding="utf-8")
+        return d
+
+    def test_bench_runner_aggregates_ghs_and_baseline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_case(root, "alpha")
+            self._write_case(root, "beta")
+            calls = []
+
+            class FakeAdapter:
+                name = "fake"
+
+                def run(self, workdir, prompt, timeout_seconds, *, arm):
+                    calls.append({
+                        "arm": arm, "prompt": prompt,
+                        "workdir": str(workdir), "timeout": timeout_seconds,
+                    })
+                    return HostRun(0, False, "", ("fake",), 0.0, "ambient")
+
+            cases_dir = root / "cases"
+            cases_dir.mkdir()
+            shutil.copytree(root / "alpha", cases_dir / "alpha")
+            shutil.copytree(root / "beta", cases_dir / "beta")
+            plugin_root = root / "plugin"
+            plugin_root.mkdir()
+
+            report = run_bench(cases_dir, None, True, FakeAdapter(), plugin_root, 60)
+
+            self.assertEqual(len(calls), 4)
+            ghs_calls = [c for c in calls if c["arm"] == "ghs"]
+            baseline_calls = [c for c in calls if c["arm"] == "baseline"]
+            self.assertEqual(len(ghs_calls), 2)
+            self.assertEqual(len(baseline_calls), 2)
+            for call in ghs_calls:
+                init_pos = call["prompt"].index("/ghs:init")
+                plan_pos = call["prompt"].index("/ghs:plan")
+                self.assertLess(init_pos, plan_pos)
+                self.assertIn(str(plugin_root), call["prompt"])
+            self.assertEqual(report["mode"], "ab")
+            self.assertEqual(report["baseline_env"], "ambient")
+            self.assertEqual(report["summary"]["ghs"]["total"], 2)
+            self.assertEqual(report["summary"]["ghs"]["passed"], 2)
+            self.assertEqual(report["summary"]["ghs"]["pass_rate"], 1.0)
+            self.assertEqual(report["summary"]["baseline"]["total"], 2)
+            self.assertEqual(report["summary"]["baseline"]["passed"], 2)
+            self.assertEqual(report["summary"]["baseline"]["pass_rate"], 1.0)
+            self.assertEqual(report["summary"]["comparison"]["pass_rate_delta"], 0.0)
+
+    def test_bench_process_metrics_extract_ghs_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            plans = project / ".ghs" / "plans"
+            plans.mkdir(parents=True)
+            (plans / "demo-status.json").write_text(json.dumps({
+                "retry_counts": {"review": 2}, "reject_count": 1,
+            }), encoding="utf-8")
+            (project / ".ghs" / "features.json").write_text(json.dumps({
+                "plans": [{"features": [
+                    {"id": "p1-feat-001", "status": "blocked"},
+                    {"id": "p1-feat-002", "status": "completed"},
+                ]}],
+            }), encoding="utf-8")
+            materializer_block = (
+                "## Feature Planning - 2026-10-31\n"
+                "**Agent**: Plan Materializer\n"
+                "**Plan**: p1 (source: demo.md)\n"
+                "**Features**: 1 task(s) materialized\n\n"
+            )
+            (project / ".ghs" / "progress.md").write_text(
+                "## Sessions\n\n" + materializer_block * 3,
+                encoding="utf-8",
+            )
+            metrics = _process_metrics(project)
+            self.assertEqual(metrics["review_rounds"], 2)
+            self.assertEqual(metrics["rejects"], 1)
+            self.assertEqual(metrics["blocked_count"], 1)
+            self.assertEqual(metrics["materialization_rewrites"], 2)
+            self.assertEqual(metrics["layer"], "process")
+
+    def test_bench_reports_host_and_verify_failures(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_case(root, "failing", verify_exit=1)
+            cases_dir = root / "cases"
+            cases_dir.mkdir()
+            shutil.copytree(root / "failing", cases_dir / "failing")
+
+            class FailingHost:
+                name = "failing-host"
+
+                def run(self, workdir, prompt, timeout_seconds, *, arm):
+                    return HostRun(1, False, "host error", ("failing",), 0.1, "ambient")
+
+            plugin_root = root / "plugin"
+            plugin_root.mkdir()
+            report = run_bench(cases_dir, None, False, FailingHost(), plugin_root, 60)
+            case = report["cases"][0]
+            self.assertEqual(case["result"], "fail")
+            self.assertIn("host", case["failure_stages"])
+            self.assertIn("verification", case["failure_stages"])
+            self.assertEqual(len(case["failure_stages"]), 2)
+            self.assertFalse(case["arms"]["ghs"]["passed"])
+            self.assertFalse(case["arms"]["ghs"]["host"]["return_code"] == 0)
+            self.assertFalse(case["arms"]["ghs"]["verification"]["passed"])
+
+    def test_codex_adapter_environment_modes(self):
+        original_run = eval_pipeline.subprocess.run
+        captured = []
+
+        def fake_run(argv, **kwargs):
+            entry = {
+                "argv": argv, "cwd": kwargs.get("cwd"),
+                "timeout": kwargs.get("timeout"),
+                "env": dict(kwargs.get("env", {})),
+            }
+            codex_home = entry["env"].get("CODEX_HOME")
+            if codex_home and Path(codex_home).is_dir():
+                config = Path(codex_home) / "config.toml"
+                entry["config_content"] = (
+                    config.read_text(encoding="utf-8") if config.is_file() else None
+                )
+            captured.append(entry)
+            return _FakeCompleted()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workdir = root / "work"
+            workdir.mkdir()
+            plugin_root = root / "plugin"
+            plugin_root.mkdir()
+            original_codex_home = os.environ.get("CODEX_HOME")
+            os.environ["CODEX_HOME"] = str(root / "original-codex-home")
+            eval_pipeline.subprocess.run = fake_run
+            try:
+                adapter = CodexExecAdapter("codex", plugin_root, clean_env=True)
+                adapter.run(workdir, "ghs prompt", 60, arm="ghs")
+                adapter.run(workdir, "baseline prompt", 60, arm="baseline")
+            finally:
+                eval_pipeline.subprocess.run = original_run
+                if original_codex_home is not None:
+                    os.environ["CODEX_HOME"] = original_codex_home
+                else:
+                    os.environ.pop("CODEX_HOME", None)
+
+            self.assertEqual(len(captured), 2)
+            ghs = captured[0]
+            baseline = captured[1]
+            # argv shape
+            expected_argv = [
+                "codex", "exec", "--cd", str(workdir),
+                "--sandbox", "workspace-write", "ghs prompt",
+            ]
+            self.assertEqual(ghs["argv"], expected_argv)
+            # ghs arm: ambient env with plugin root and original CODEX_HOME
+            self.assertEqual(ghs["env"]["CODEX_HOME"], str(root / "original-codex-home"))
+            self.assertEqual(ghs["env"]["PLUGIN_ROOT"], str(plugin_root.resolve()))
+            self.assertEqual(
+                ghs["env"]["CLAUDE_PLUGIN_ROOT"], str(plugin_root.resolve()),
+            )
+            # clean baseline: fresh CODEX_HOME, no original value, no plugin root
+            self.assertNotEqual(
+                baseline["env"]["CODEX_HOME"], str(root / "original-codex-home"),
+            )
+            self.assertNotIn("PLUGIN_ROOT", baseline["env"])
+            self.assertNotIn("CLAUDE_PLUGIN_ROOT", baseline["env"])
+            self.assertIsNotNone(baseline.get("config_content"))
+            self.assertIn("minimal", baseline["config_content"])
 
 
 if __name__ == "__main__":

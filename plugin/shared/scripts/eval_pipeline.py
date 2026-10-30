@@ -14,8 +14,11 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
+import time
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
@@ -32,6 +35,7 @@ VALID_PLAN_STATUSES = {"planning", "in_progress", "completed", "on_hold"}
 TERMINAL_PLAN_STATUSES = {"approved", "aborted", "completed"}
 CASE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 OUTPUT_TAIL_LIMIT = 4000
+MINIMAL_CODEX_CONFIG = "# minimal codex default config\n"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -69,6 +73,16 @@ class VerifyOutcome:
     timed_out: bool
     output_tail: str
     artifact_errors: tuple[str, ...]
+
+
+@dataclasses.dataclass(frozen=True)
+class HostRun:
+    return_code: int | None
+    timed_out: bool
+    output_tail: str
+    argv: tuple[str, ...]
+    duration_seconds: float
+    environment: str
 
 
 def _read_json(path: Path) -> tuple[Any | None, str | None]:
@@ -307,6 +321,335 @@ def verify_workdir(case: Case, workdir: Path) -> VerifyOutcome:
         _output_tail(completed.stdout, completed.stderr),
         artifact_errors,
     )
+
+
+class HostAdapter:
+    """Abstract seam; replace to support a different host CLI."""
+
+    name = "abstract"
+
+    def run(
+        self, workdir: Path, prompt: str, timeout_seconds: int, *, arm: str
+    ) -> HostRun:
+        raise NotImplementedError
+
+
+class CodexExecAdapter(HostAdapter):
+    name = "codex-exec"
+
+    def __init__(self, codex_bin: str, plugin_root: Path, clean_env: bool = False):
+        self.codex_bin = codex_bin
+        self.plugin_root = plugin_root.resolve()
+        self.clean_env = clean_env
+
+    def run(
+        self, workdir: Path, prompt: str, timeout_seconds: int, *, arm: str
+    ) -> HostRun:
+        argv = (
+            self.codex_bin, "exec", "--cd", str(workdir),
+            "--sandbox", "workspace-write", prompt,
+        )
+        is_clean = self.clean_env and arm == "baseline"
+        environment = "clean" if is_clean else "ambient"
+        env = os.environ.copy()
+        temp_home: tempfile.TemporaryDirectory[str] | None = None
+        if is_clean:
+            temp_home = tempfile.TemporaryDirectory(prefix="ghs-clean-codex-home-")
+            config_path = Path(temp_home.name) / "config.toml"
+            config_path.write_text(MINIMAL_CODEX_CONFIG, encoding="utf-8")
+            env["CODEX_HOME"] = temp_home.name
+            env.pop("PLUGIN_ROOT", None)
+            env.pop("CLAUDE_PLUGIN_ROOT", None)
+        else:
+            env["PLUGIN_ROOT"] = str(self.plugin_root)
+            env["CLAUDE_PLUGIN_ROOT"] = str(self.plugin_root)
+        env["PYTHONIOENCODING"] = "utf-8"
+        start = time.monotonic()
+        try:
+            completed = subprocess.run(
+                list(argv), cwd=workdir, env=env,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=timeout_seconds, check=False,
+            )
+            run = HostRun(
+                completed.returncode, False,
+                _output_tail(completed.stdout, completed.stderr),
+                argv, time.monotonic() - start, environment,
+            )
+        except subprocess.TimeoutExpired as exc:
+            run = HostRun(
+                None, True, _output_tail(exc.stdout, exc.stderr),
+                argv, time.monotonic() - start, environment,
+            )
+        except OSError as exc:
+            run = HostRun(
+                None, False, f"host could not start: {exc}",
+                argv, time.monotonic() - start, environment,
+            )
+        finally:
+            if temp_home is not None:
+                temp_home.cleanup()
+        return run
+
+
+def _ghs_prompt(workdir: Path, brief: str, plugin_root: Path) -> str:
+    return (
+        f"Project directory: {workdir}\n"
+        f"Plugin root: {plugin_root.resolve()}\n"
+        "\n"
+        "The user pre-authorizes this entire workflow in one pass.\n"
+        "Do not read, access, or modify any evaluation corpus, verifier, or scoring files.\n"
+        "\n"
+        "Task brief:\n"
+        f"{brief}\n"
+        "\n"
+        "Execute this workflow:\n"
+        f"1. Run /ghs:init with project directory {workdir}; "
+        "confirm .ghs/features.json and .ghs/progress.md are created.\n"
+        "2. Run /ghs:plan to complete contract, review, and approval.\n"
+        "3. Run /ghs:code until every feature is completed.\n"
+        "4. Run /ghs:archive to archive the completed plan.\n"
+    )
+
+
+def _baseline_prompt(workdir: Path, brief: str) -> str:
+    return (
+        f"Project directory: {workdir}\n"
+        "\n"
+        "Do not use ghs or any ghs commands.\n"
+        "Do not read, create, or modify any .ghs directory or files.\n"
+        "The user pre-authorizes this task in one pass.\n"
+        "\n"
+        "Task brief:\n"
+        f"{brief}\n"
+    )
+
+
+def _init_git_repo(workdir: Path) -> None:
+    env = {**os.environ, "GIT_OPTIONAL_LOCKS": "0"}
+    commands = [
+        ["git", "init", "-b", "main"],
+        ["git", "config", "user.name", "ghs-bench"],
+        ["git", "config", "user.email", "bench@ghs.eval"],
+        ["git", "add", "-A"],
+        ["git", "commit", "--allow-empty", "-m", "Initial fixture"],
+    ]
+    try:
+        for argv in commands:
+            subprocess.run(argv, cwd=workdir, env=env, capture_output=True, check=False)
+    except OSError:
+        pass
+
+
+def _count_blocked_features(project_dir: Path) -> int:
+    count = 0
+    trackers = [project_dir / ".ghs" / "features.json"]
+    archive_root = project_dir / ".ghs" / "archived"
+    if archive_root.is_dir():
+        trackers.extend(sorted(archive_root.rglob("features.json")))
+    for path in trackers:
+        if not path.is_file():
+            continue
+        data = _read_json(path)[0]
+        if not isinstance(data, dict):
+            continue
+        for plan in data.get("plans", []):
+            if not isinstance(plan, dict):
+                continue
+            for feature in plan.get("features", []):
+                if isinstance(feature, dict) and feature.get("status") == "blocked":
+                    count += 1
+    return count
+
+
+_MATERIALIZER_BLOCK_RE = re.compile(
+    r"^## .+?\n\*\*Agent\*\*:\s*Plan Materializer.*?(?=^## |\Z)",
+    re.MULTILINE | re.DOTALL,
+)
+_PLAN_LINE_RE = re.compile(r"^\*\*Plan\*\*:\s*(\S+)", re.MULTILINE)
+
+
+def _count_materialization_rewrites(project_dir: Path) -> int:
+    per_plan: dict[str, int] = {}
+    progress_files = [project_dir / ".ghs" / "progress.md"]
+    archive_root = project_dir / ".ghs" / "archived"
+    if archive_root.is_dir():
+        progress_files.extend(sorted(archive_root.rglob("progress.md")))
+    for path in progress_files:
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for match in _MATERIALIZER_BLOCK_RE.finditer(text):
+            plan_match = _PLAN_LINE_RE.search(match.group())
+            plan_id = plan_match.group(1) if plan_match else "unknown"
+            per_plan[plan_id] = per_plan.get(plan_id, 0) + 1
+    return sum(max(0, count - 1) for count in per_plan.values())
+
+
+def _process_metrics(project_dir: Path) -> dict:
+    review_rounds = 0
+    rejects = 0
+    plans_dir = project_dir / ".ghs" / "plans"
+    if plans_dir.is_dir():
+        for path in sorted(plans_dir.glob("*-status.json")):
+            data = _read_json(path)[0]
+            if not isinstance(data, dict):
+                continue
+            retry = data.get("retry_counts")
+            if isinstance(retry, dict) and isinstance(retry.get("review"), int):
+                review_rounds += retry["review"]
+            if isinstance(data.get("reject_count"), int):
+                rejects += data["reject_count"]
+    return {
+        "layer": "process",
+        "review_rounds": review_rounds,
+        "rejects": rejects,
+        "blocked_count": _count_blocked_features(project_dir),
+        "materialization_rewrites": _count_materialization_rewrites(project_dir),
+    }
+
+
+def _run_single_arm(
+    case: Case,
+    arm: str,
+    adapter: HostAdapter,
+    plugin_root: Path,
+    timeout_seconds: int,
+    clean_env: bool,
+) -> dict:
+    workdir = Path(tempfile.mkdtemp(prefix=f"ghs-bench-{case.name}-{arm}-"))
+    failure_stages: list[str] = []
+    metrics = None
+    try:
+        shutil.copytree(case.fixture_dir, workdir, dirs_exist_ok=True)
+        _init_git_repo(workdir)
+        brief = case.brief_path.read_text(encoding="utf-8", errors="replace")
+        if arm == "ghs":
+            prompt = _ghs_prompt(workdir, brief, plugin_root)
+        else:
+            prompt = _baseline_prompt(workdir, brief)
+        host_run = adapter.run(workdir, prompt, timeout_seconds, arm=arm)
+        host_ok = host_run.return_code == 0 and not host_run.timed_out
+        if not host_ok:
+            failure_stages.append("host")
+        verification = verify_workdir(case, workdir)
+        if not verification.passed:
+            failure_stages.append("verification")
+        if arm == "ghs":
+            metrics = _process_metrics(workdir)
+        return {
+            "arm": arm,
+            "passed": host_ok and verification.passed,
+            "failure_stages": failure_stages,
+            "environment": "clean" if (clean_env and arm == "baseline") else "ambient",
+            "host": {
+                "argv": list(host_run.argv),
+                "return_code": host_run.return_code,
+                "timed_out": host_run.timed_out,
+                "duration_seconds": host_run.duration_seconds,
+                "output_tail": host_run.output_tail,
+            },
+            "verification": {
+                "layer": "outcome",
+                "passed": verification.passed,
+                "verifier_exit_code": verification.verifier_exit_code,
+                "timed_out": verification.timed_out,
+                "output_tail": verification.output_tail,
+                "artifact_errors": list(verification.artifact_errors),
+            },
+            "metrics": metrics,
+        }
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def run_bench(
+    cases_dir: Path,
+    selected: set[str] | None,
+    baseline: bool,
+    adapter: HostAdapter,
+    plugin_root: Path,
+    timeout_seconds: int,
+    clean_env: bool = False,
+) -> dict:
+    """Run benchmark cases and aggregate A/B pass rates."""
+    cases, case_errors = load_cases(cases_dir, selected)
+    mode = "ab" if baseline else "ghs"
+    baseline_env = "clean" if clean_env else "ambient"
+    report_cases: list[dict] = []
+
+    for error in case_errors:
+        report_cases.append({
+            "name": error.name,
+            "case_valid": False,
+            "baseline_env": baseline_env,
+            "result": "fail",
+            "failure_stages": ["case_validation"],
+            "metrics": None,
+            "verification": None,
+            "arms": {},
+            "errors": list(error.errors),
+        })
+
+    for case in cases:
+        ghs_arm = _run_single_arm(case, "ghs", adapter, plugin_root, timeout_seconds, clean_env)
+        arms: dict[str, dict] = {"ghs": ghs_arm}
+        failure_stages = list(ghs_arm["failure_stages"])
+        if baseline:
+            baseline_arm = _run_single_arm(case, "baseline", adapter, plugin_root, timeout_seconds, clean_env)
+            arms["baseline"] = baseline_arm
+            failure_stages.extend(baseline_arm["failure_stages"])
+        result = "pass" if all(a["passed"] for a in arms.values()) else "fail"
+        report_cases.append({
+            "name": case.name,
+            "case_valid": True,
+            "baseline_env": baseline_env,
+            "result": result,
+            "failure_stages": failure_stages,
+            "metrics": ghs_arm.get("metrics"),
+            "verification": ghs_arm["verification"],
+            "arms": arms,
+        })
+
+    total = len(report_cases)
+    ghs_passes = sum(
+        1 for c in report_cases
+        if c.get("arms", {}).get("ghs", {}).get("passed", False)
+    )
+    summary: dict = {
+        "ghs": {
+            "total": total,
+            "passed": ghs_passes,
+            "pass_rate": ghs_passes / total if total else 0.0,
+        },
+    }
+    if baseline:
+        baseline_passes = sum(
+            1 for c in report_cases
+            if c.get("arms", {}).get("baseline", {}).get("passed", False)
+        )
+        baseline_rate = baseline_passes / total if total else 0.0
+        summary["baseline"] = {
+            "total": total, "passed": baseline_passes, "pass_rate": baseline_rate,
+        }
+        summary["comparison"] = {
+            "ghs_pass_rate": summary["ghs"]["pass_rate"],
+            "baseline_pass_rate": baseline_rate,
+            "pass_rate_delta": summary["ghs"]["pass_rate"] - baseline_rate,
+        }
+
+    return {
+        "schema_version": 1,
+        "kind": "ghs-eval-bench",
+        "cases_dir": str(cases_dir.resolve()),
+        "mode": mode,
+        "baseline_env": baseline_env,
+        "summary": summary,
+        "cases": report_cases,
+    }
 
 
 def _check(
@@ -907,6 +1250,27 @@ def _build_parser() -> argparse.ArgumentParser:
         "--project-dir", "-p", default=".",
         help="Target project directory (default: current directory)",
     )
+    bench = subparsers.add_parser("bench", help="benchmark runner with hidden verification")
+    bench.add_argument("--cases", required=True, help="Cases directory")
+    bench.add_argument("--baseline", action="store_true", help="Also run baseline arm")
+    bench.add_argument(
+        "--case", action="append", dest="selected_cases",
+        help="Specific case name (repeatable)",
+    )
+    bench.add_argument(
+        "--clean-env", action="store_true",
+        help="Baseline arm gets an isolated CODEX_HOME",
+    )
+    bench.add_argument("--codex-bin", default="codex", help="Codex CLI binary")
+    bench.add_argument(
+        "--plugin-root",
+        default=str(Path(__file__).resolve().parents[2]),
+        help="Plugin root directory",
+    )
+    bench.add_argument(
+        "--timeout-seconds", type=int, default=3600,
+        help="Host execution timeout in seconds",
+    )
     return parser
 
 
@@ -914,6 +1278,8 @@ def main() -> int:
     force_utf8_stdio()
     parser = _build_parser()
     args = parser.parse_args()
+    if args.command == "bench":
+        return _run_bench_cli(args)
     project_dir = Path(args.project_dir).resolve()
     if not project_dir.is_dir():
         print(f"eval_pipeline: error: project directory not found: {project_dir}", file=sys.stderr)
@@ -921,6 +1287,30 @@ def main() -> int:
     report = run_audit(project_dir)
     print(json.dumps(report, ensure_ascii=False))
     return 2 if not report["zero_write_verified"] else (0 if report["passed"] else 1)
+
+
+def _run_bench_cli(args: argparse.Namespace) -> int:
+    cases_dir = Path(args.cases).resolve()
+    if not cases_dir.is_dir():
+        print(f"eval_pipeline: error: cases directory not found: {cases_dir}", file=sys.stderr)
+        return 2
+    plugin_root = Path(args.plugin_root).resolve()
+    if not plugin_root.is_dir():
+        print(f"eval_pipeline: error: plugin root not found: {plugin_root}", file=sys.stderr)
+        return 2
+    if args.timeout_seconds <= 0:
+        print("eval_pipeline: error: timeout-seconds must be positive", file=sys.stderr)
+        return 2
+    adapter = CodexExecAdapter(args.codex_bin, plugin_root, clean_env=args.clean_env)
+    selected = set(args.selected_cases) if args.selected_cases else None
+    report = run_bench(
+        cases_dir, selected, args.baseline, adapter,
+        plugin_root, args.timeout_seconds, clean_env=args.clean_env,
+    )
+    print(json.dumps(report, ensure_ascii=False))
+    if not report["cases"]:
+        return 2
+    return 0 if all(case["result"] == "pass" for case in report["cases"]) else 1
 
 
 if __name__ == "__main__":
