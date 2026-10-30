@@ -9,6 +9,17 @@ disable-model-invocation: true
 
 Implement features from the current plan. Two modes: **single feature** (default) and **parallel** (multiple features at once via `--parallel`).
 
+## Platform Adaptation
+- Claude Code hosts: nothing to do — proceed as written below.
+- Other hosts (OpenAI Codex CLI, Pi coding agent): if `${CLAUDE_PLUGIN_ROOT}` below is
+  not expanded by your harness, derive the plugin root from the directory of the SKILL.md
+  you are executing (its grandparent directory), run
+  `command python3 <plugin_root>/shared/scripts/host_compat.py`, then read
+  `<plugin_root>/shared/references/codex-host.md` when it reports `"host": "codex"` or
+  `<plugin_root>/shared/references/pi-host.md` when it reports `"host": "pi"`, and follow
+  that file wherever it supersedes a host-specific instruction below (subagent dispatch,
+  interactive questions, plugin-root resolution).
+
 ## Prerequisites
 
 The project must have an active plan with pending features. If not, tell the user to run `/ghs:to-features` first.

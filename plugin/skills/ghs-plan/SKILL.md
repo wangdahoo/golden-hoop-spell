@@ -9,6 +9,17 @@ disable-model-invocation: true
 
 Produce an executable technical plan through multi-agent collaboration. The dispatcher (main conversation) coordinates a plan designer (Plan subagent) and a plan reviewer (architect subagent), operating under a hard review cap: one full review, then at most one targeted revision, one targeted re-review, and one final revision.
 
+## Platform Adaptation
+- Claude Code hosts: nothing to do — proceed as written below.
+- Other hosts (OpenAI Codex CLI, Pi coding agent): if `${CLAUDE_PLUGIN_ROOT}` below is
+  not expanded by your harness, derive the plugin root from the directory of the SKILL.md
+  you are executing (its grandparent directory), run
+  `command python3 <plugin_root>/shared/scripts/host_compat.py`, then read
+  `<plugin_root>/shared/references/codex-host.md` when it reports `"host": "codex"` or
+  `<plugin_root>/shared/references/pi-host.md` when it reports `"host": "pi"`, and follow
+  that file wherever it supersedes a host-specific instruction below (subagent dispatch,
+  interactive questions, plugin-root resolution).
+
 ## Flow Overview
 
 ```

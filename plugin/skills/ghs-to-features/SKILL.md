@@ -8,6 +8,17 @@ disable-model-invocation: true
 
 Break down requirements into atomic features with acceptance criteria, dependencies, and priorities. Update `features.json` and `progress.md`.
 
+## Platform Adaptation
+- Claude Code hosts: nothing to do — proceed as written below.
+- Other hosts (OpenAI Codex CLI, Pi coding agent): if `${CLAUDE_PLUGIN_ROOT}` below is
+  not expanded by your harness, derive the plugin root from the directory of the SKILL.md
+  you are executing (its grandparent directory), run
+  `command python3 <plugin_root>/shared/scripts/host_compat.py`, then read
+  `<plugin_root>/shared/references/codex-host.md` when it reports `"host": "codex"` or
+  `<plugin_root>/shared/references/pi-host.md` when it reports `"host": "pi"`, and follow
+  that file wherever it supersedes a host-specific instruction below (subagent dispatch,
+  interactive questions, plugin-root resolution).
+
 ## Prerequisites
 
 The project must be initialized (have `.ghs/features.json` and `.ghs/progress.md`). If not, tell the user to run `/ghs:init` first.
