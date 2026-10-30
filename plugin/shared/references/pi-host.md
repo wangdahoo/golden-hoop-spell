@@ -1,7 +1,7 @@
 # Pi Host Operating Manual (golden-hoop-spell)
 
 This is the Pi coding agent operating manual for the golden-hoop-spell plugin
-(plugin `golden-hoop-spell`, version `0.7.0`; the plugin's resource declarations
+(plugin `golden-hoop-spell`, version `0.8.0`; the plugin's resource declarations
 live in the repository root `package.json` under the `pi` key). The Claude side
 never reads this file.
 

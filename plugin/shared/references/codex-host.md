@@ -1,7 +1,7 @@
 # Codex Host Operating Manual (golden-hoop-spell)
 
 This is the OpenAI Codex CLI operating manual for the golden-hoop-spell plugin
-(plugin `golden-hoop-spell`, version `0.7.0`, manifest at
+(plugin `golden-hoop-spell`, version `0.8.0`, manifest at
 `<plugin_root>/.codex-plugin/plugin.json`). The Claude side never reads this file.
 
 Read it when the Platform Adaptation block in a SKILL.md directs you here, i.e.
