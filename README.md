@@ -42,6 +42,53 @@ Add the marketplace and install the plugin:
 claude --plugin-dir /path/to/golden-hoop-spell/plugin
 ```
 
+### Install on OpenAI Codex CLI
+
+The same plugin source installs natively on OpenAI Codex CLI (manifest at `plugin/.codex-plugin/plugin.json`):
+
+```bash
+# Add the marketplace
+codex plugin marketplace add wangdahoo/golden-hoop-spell
+
+# Install the plugin via the /plugins browser inside a Codex CLI session
+/plugins
+```
+
+Prerequisite: enable the `multi_agent` feature flag in `~/.codex/config.toml` so subagent dispatch works, then restart the CLI session:
+
+```toml
+[features]
+multi_agent = true
+```
+
+Optionally set machine-level subagent defaults under `[agents]` (`default_subagent_model`, `default_subagent_reasoning_effort`) as a safety net; `python3` must be on PATH.
+
+Invoke skills by describing the task in natural language or by @-mentioning the plugin/skill. Interactive questions use Codex's native `request_user_input` tool (interactive terminal only); in `codex exec` and other non-interactive modes, ghs falls back to plain-text questions. See `plugin/shared/references/codex-host.md` for the full host manual.
+
+### Install on Pi
+
+The same skill source installs natively on the Pi coding agent (resource declarations live in the repository root `package.json` under the `pi` key). Two install paths:
+
+```bash
+# From the git source (cloned to ~/.pi/agent/git/)
+pi install git:github.com/wangdahoo/golden-hoop-spell
+
+# Or from a local checkout (convention-based discovery of plugin/skills)
+pi install /path/to/golden-hoop-spell/plugin
+```
+
+Append `-l` to either command for a project-local install (`.pi/settings.json`) instead of global.
+
+Prerequisite: install pi-subagents so the multi-subagent features (the `/ghs:plan` three-role pipeline and `/ghs:code --parallel`) work:
+
+```bash
+pi install npm:pi-subagents
+```
+
+The ghs-bundled `ask_user` interactive extension registers automatically when the plugin loads (declared under `pi.extensions` in `package.json`) — no separate install step.
+
+Invoke skills with the explicit command form `/skill:ghs:<name>` (for example `/skill:ghs:init`). See `plugin/shared/references/pi-host.md` for the full host manual.
+
 ## Quick Start
 
 ```bash

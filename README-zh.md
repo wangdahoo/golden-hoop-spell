@@ -42,6 +42,53 @@
 claude --plugin-dir /path/to/golden-hoop-spell/plugin
 ```
 
+### 在 OpenAI Codex CLI 上安装
+
+同一份插件源可在 OpenAI Codex CLI 上原生安装（清单位于 `plugin/.codex-plugin/plugin.json`）：
+
+```bash
+# 添加插件市场
+codex plugin marketplace add wangdahoo/golden-hoop-spell
+
+# 在 Codex CLI 会话内通过 /plugins 浏览器安装
+/plugins
+```
+
+前置条件：在 `~/.codex/config.toml` 中开启 `multi_agent` 特性开关，子代理派发才能工作；开启后重启 CLI 会话：
+
+```toml
+[features]
+multi_agent = true
+```
+
+可选：在 `[agents]` 下设置机器级子代理默认值（`default_subagent_model`、`default_subagent_reasoning_effort`）作为兜底；`python3` 需在 PATH 上。
+
+调用技能：用自然语言描述任务，或 @ 显式提及插件/技能。交互式提问使用 Codex 原生 `request_user_input` 工具（仅限交互式终端）；在 `codex exec` 等非交互场景下，ghs 会退回纯文本提问。完整宿主手册见 `plugin/shared/references/codex-host.md`。
+
+### 在 Pi 上安装
+
+同一份技能源可在 Pi coding agent 上原生安装（资源声明位于仓库根 `package.json` 的 `pi` 键）。两条安装路径：
+
+```bash
+# 从 git 源安装（克隆到 ~/.pi/agent/git/）
+pi install git:github.com/wangdahoo/golden-hoop-spell
+
+# 或从本地检出安装（按约定目录自动发现 plugin/skills）
+pi install /path/to/golden-hoop-spell/plugin
+```
+
+在任一命令后追加 `-l` 可改为项目级安装（写入 `.pi/settings.json`），缺省为全局安装。
+
+前置条件：安装 pi-subagents，多子代理特性（`/ghs:plan` 三角色流水线与 `/ghs:code --parallel`）才能工作：
+
+```bash
+pi install npm:pi-subagents
+```
+
+ghs 自带的 `ask_user` 交互扩展随插件加载自动注册（经 `package.json` 的 `pi.extensions` 声明分发）——无需单独安装。
+
+调用技能使用显式命令形态 `/skill:ghs:<name>`（例如 `/skill:ghs:init`）。完整宿主手册见 `plugin/shared/references/pi-host.md`。
+
 ## 快速开始
 
 ```bash
