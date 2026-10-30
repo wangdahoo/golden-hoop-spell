@@ -50,18 +50,18 @@ command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/archive_plans.py --project-
 
 This will:
 - Create `.ghs/archived/<plan-id>_<name>_<timestamp>/`
-- Save the plan's feature data and related sessions to the archive folder
+- Save the plan's feature data and a full snapshot of the complete Sessions section to the archive folder
 - Remove the archived plan from `.ghs/features.json`
-- Reset `.ghs/progress.md` to the default template
+- Update `.ghs/progress.md`: reset to the default template when no plans remain; otherwise remove only the archived plan's entries
 
 No git commit needed — `.ghs/` tracking files are local metadata (gitignored by `ghs:init`).
 
 ## What Gets Archived
 
 - Plan feature data → `.ghs/archived/<folder>/features.json`
-- Related progress sessions → `.ghs/archived/<folder>/progress.md`
+- Full snapshot of the complete Sessions section → `.ghs/archived/<folder>/progress.md`
 - Plan is removed from `.ghs/features.json`
-- `.ghs/progress.md` is reset to the default template
+- `.ghs/progress.md`: reset to the default template when no plans remain; otherwise only the archived plan's entries are removed
 
 ## If No Completed Plans
 
@@ -83,7 +83,7 @@ Finish every run of this skill with BOTH closing steps. They are mandatory: ever
 
 ### Step 1: Append the progress.md session entry
 
-Add ONE entry at the **top** of the `## Sessions` section in `<PROJECT_DIR>/.ghs/progress.md`, following the field structure of the Session Template built into that file. Run this step AFTER `archive_plans.py` — the script resets `.ghs/progress.md` to the default template, so the entry must be appended afterwards:
+Add ONE entry at the **top** of the `## Sessions` section in `<PROJECT_DIR>/.ghs/progress.md`, following the field structure defined in `${CLAUDE_PLUGIN_ROOT}/shared/references/session-entry-format.md`. Run this step AFTER `archive_plans.py` — when no plans remain the script resets `.ghs/progress.md` to the default template, so the entry must be appended afterwards; when plans remain the script removes only the archived plan's entries and the entry is inserted at the top as usual:
 
 ```markdown
 ## Session N - YYYY-MM-DD

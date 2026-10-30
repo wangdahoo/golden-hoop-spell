@@ -928,8 +928,8 @@ workflow.
 ### Step 1: Append the progress.md session entry
 
 Add ONE entry at the **top** of the `## Sessions` section in
-`<PROJECT_DIR>/.ghs/progress.md`, following the field structure of the Session Template
-built into that file:
+`<PROJECT_DIR>/.ghs/progress.md`, following the field structure defined in
+`${CLAUDE_PLUGIN_ROOT}/shared/references/session-entry-format.md`:
 
 ```markdown
 ## Session N - YYYY-MM-DD

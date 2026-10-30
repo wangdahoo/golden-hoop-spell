@@ -114,7 +114,7 @@ Check all acceptance criteria:
    - `false` → do NOT flip; report `counts` and `blocked_ids` to the user.
    Include the outcome (including "kept in_progress") in the session entry's Next Steps.
 
-4. Update `.ghs/progress.md` with session summary at the **top** of the sessions section. The entry follows the Session Template field structure built into `.ghs/progress.md` (the five sections `### Work Completed` / `### Tests Performed` / `### Issues Encountered` / `### Decisions Made` / `### Next Steps`), with two coding-specific sections added:
+4. Update `.ghs/progress.md` with session summary at the **top** of the sessions section. The entry follows the field structure defined in `${CLAUDE_PLUGIN_ROOT}/shared/references/session-entry-format.md` (the five sections `### Work Completed` / `### Tests Performed` / `### Issues Encountered` / `### Decisions Made` / `### Next Steps`), with two coding-specific sections added:
 
 ```markdown
 ## Session N - YYYY-MM-DD
@@ -366,7 +366,7 @@ Finish every run of this skill with BOTH closing steps. They are mandatory: ever
 
 ### Step 1: Append the progress.md session entry
 
-The session summary written at Step 5 of End of Session (single mode) or the parallel orchestration summary (parallel mode) fulfills this step — do not append a duplicate entry. It must follow the Session Template field structure built into `.ghs/progress.md`: the five sections `### Work Completed` / `### Tests Performed` / `### Issues Encountered` / `### Decisions Made` / `### Next Steps` are required, with the coding-specific sections (`### Files Changed`, `### Acceptance Criteria Status`) kept as additions.
+The session summary written at Step 5 of End of Session (single mode) or the parallel orchestration summary (parallel mode) fulfills this step — do not append a duplicate entry. It must follow the field structure defined in `${CLAUDE_PLUGIN_ROOT}/shared/references/session-entry-format.md`: the five sections `### Work Completed` / `### Tests Performed` / `### Issues Encountered` / `### Decisions Made` / `### Next Steps` are required, with the coding-specific sections (`### Files Changed`, `### Acceptance Criteria Status`) kept as additions.
 
 ### Step 2: Give the user the next-step guidance
 

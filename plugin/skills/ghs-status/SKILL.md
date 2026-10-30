@@ -49,37 +49,9 @@ If there are no plans, suggest running `/ghs:to-features` to plan the first plan
 
 ## Closing Steps
 
-Finish every run of this skill with BOTH closing steps. They are mandatory: every ghs skill sets `disable-model-invocation: true` in its frontmatter, so the model never auto-loads the next skill — after this skill finishes, these pointers are the only channel that routes the user to the next stage of the workflow.
+Finish every run of this skill with this closing step. It is mandatory: every ghs skill sets `disable-model-invocation: true` in its frontmatter, so the model never auto-loads the next skill — after this skill finishes, this pointer is the only channel that routes the user to the next stage of the workflow.
 
-### Step 1: Append the progress.md session entry
-
-Add ONE entry at the **top** of the `## Sessions` section in `<PROJECT_DIR>/.ghs/progress.md`, following the field structure of the Session Template built into that file:
-
-```markdown
-## Session N - YYYY-MM-DD
-**Agent**: Status Agent
-**Plan**: [Plan ID if applicable]
-**Feature**: [Feature ID if applicable]
-
-### Work Completed
-- [What was done in this session]
-
-### Tests Performed
-- [How the results were verified]
-
-### Issues Encountered
-- [Any blockers, bugs, or challenges]
-
-### Decisions Made
-- [Architectural or design choices]
-
-### Next Steps
-- [Recommended next actions]
-```
-
-`N` continues the numbering of existing `## Session N` entries.
-
-### Step 2: Give the user the next-step guidance
+### Step 1: Give the user the next-step guidance
 
 End the session by telling the user exactly what to run next. Never invoke the next ghs skill yourself — with model invocation disabled, every ghs skill is triggered only by an explicit user command:
 

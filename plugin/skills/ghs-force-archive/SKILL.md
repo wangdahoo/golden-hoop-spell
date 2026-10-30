@@ -76,7 +76,7 @@ Finish every run of this skill with BOTH closing steps. They are mandatory: ever
 
 ### Step 1: Append the progress.md session entry
 
-Add ONE entry at the **top** of the `## Sessions` section in `<PROJECT_DIR>/.ghs/progress.md`, following the field structure of the Session Template built into that file. Run this step AFTER `archive_plans.py` — the script resets `.ghs/progress.md` to the default template, so the entry must be appended afterwards:
+Add ONE entry at the **top** of the `## Sessions` section in `<PROJECT_DIR>/.ghs/progress.md`, following the field structure defined in `${CLAUDE_PLUGIN_ROOT}/shared/references/session-entry-format.md`. Run this step AFTER `archive_plans.py` — the script resets `.ghs/progress.md` to the default template, so the entry must be appended afterwards:
 
 ```markdown
 ## Session N - YYYY-MM-DD
