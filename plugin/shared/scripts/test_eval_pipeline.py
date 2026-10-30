@@ -2,6 +2,8 @@
 """Tests for the read-only ghs lifecycle audit engine."""
 
 import json
+import hashlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -11,7 +13,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from eval_pipeline import run_audit  # noqa: E402
+from eval_pipeline import load_cases, run_audit, verify_workdir  # noqa: E402
 
 
 PROJECT = {
@@ -186,6 +188,140 @@ class EvalPipelineAuditTests(unittest.TestCase):
             self.assertEqual(rc.returncode, 1)
             payload = json.loads(rc.stdout)
             self.assertFalse(payload["passed"])
+
+
+class EvalPipelineCaseTests(unittest.TestCase):
+    def write_case(self, root, name, *, artifacts=None, fixture_files=None,
+                   verifier="ok", timeout=None):
+        directory = root / name
+        (directory / "fixture").mkdir(parents=True)
+        case = {
+            "schema_version": 1,
+            "name": name,
+            "title": f"Example {name}",
+        }
+        if timeout is not None:
+            case["verify_timeout_seconds"] = timeout
+        (directory / "case.json").write_text(
+            json.dumps(case), encoding="utf-8"
+        )
+        (directory / "brief.md").write_text("Fix the fixture.\n", encoding="utf-8")
+        (directory / "verify.py").write_text(
+            "\n".join([
+                "from pathlib import Path",
+                "import sys",
+                "",
+                "artifact = Path(sys.argv[1]) / 'calc.py'",
+                f"value = artifact.read_text(encoding='utf-8').strip()",
+                f"if value != '{verifier}':",
+                "    print('calc value mismatch')",
+                "    sys.exit(1)",
+                "sys.exit(0)",
+            ]) + "\n",
+            encoding="utf-8",
+        )
+        (directory / "expected_artifacts.json").write_text(
+            json.dumps({
+                "schema_version": 1,
+                "artifacts": artifacts if artifacts is not None else [
+                    {"path": "calc.py", "sha256": None},
+                ],
+            }), encoding="utf-8",
+        )
+        fixture_files = fixture_files if fixture_files is not None else {
+            "calc.py": "ok\n",
+        }
+        for path, content in fixture_files.items():
+            (directory / "fixture" / path).write_text(content, encoding="utf-8")
+        return directory
+
+    def test_load_cases_parses_valid_case_and_fixture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write_case(root, "z-case")
+            self.write_case(root, "a-case")
+            cases, errors = load_cases(root, {"z-case", "z-case", "a-case"})
+            self.assertEqual(errors, [])
+            self.assertEqual([case.name for case in cases], ["a-case", "z-case"])
+            self.assertEqual(cases[0].title, "Example a-case")
+            self.assertEqual(cases[0].verify_timeout_seconds, 120)
+            self.assertEqual(
+                cases[0].expected_artifacts,
+                (type(cases[0].expected_artifacts[0])("calc.py", None),),
+            )
+            self.assertTrue(cases[0].fixture_dir.is_dir())
+
+    def test_case_without_hidden_verify_is_invalid(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write_case(root, "missing-verifier")
+            (root / "missing-verifier" / "verify.py").unlink()
+            self.write_case(root, "missing-expected")
+            (root / "missing-expected" / "expected_artifacts.json").unlink()
+            cases, errors = load_cases(root, None)
+            self.assertEqual(cases, [])
+            self.assertEqual([error.name for error in errors], [
+                "missing-expected", "missing-verifier",
+            ])
+            self.assertFalse(all(error.case_valid for error in errors))
+            self.assertTrue(any("verify.py" in error.errors[0] for error in errors))
+            self.assertTrue(any(
+                "expected_artifacts.json" in error.errors[0] for error in errors
+            ))
+
+    def test_expected_artifact_paths_are_rejected_when_unsafe(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write_case(root, "absolute-path", artifacts=[
+                {"path": "/repo/secret", "sha256": None},
+            ])
+            self.write_case(root, "parent-path", artifacts=[
+                {"path": "../secret", "sha256": None},
+            ])
+            cases, errors = load_cases(root, None)
+            self.assertEqual(cases, [])
+            self.assertEqual([error.name for error in errors], [
+                "absolute-path", "parent-path",
+            ])
+            self.assertTrue(all(
+                "safe relative POSIX path" in error.errors[0] for error in errors
+            ))
+
+    def test_verify_case_reports_pass_and_failure_tails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            case_dir = self.write_case(root, "tail-case")
+            cases, errors = load_cases(root, {"tail-case"})
+            self.assertEqual(errors, [])
+            passing = Path(tmp) / "passing-workdir"
+            failing = Path(tmp) / "failing-workdir"
+            shutil.copytree(case_dir / "fixture", passing)
+            shutil.copytree(case_dir / "fixture", failing)
+            (failing / "calc.py").write_text("broken\n", encoding="utf-8")
+            passed = verify_workdir(cases[0], passing)
+            failed = verify_workdir(cases[0], failing)
+            self.assertTrue(passed.passed)
+            self.assertEqual(passed.verifier_exit_code, 0)
+            self.assertFalse(passed.timed_out)
+            self.assertFalse(failed.passed)
+            self.assertEqual(failed.verifier_exit_code, 1)
+            self.assertIn("calc value mismatch", failed.output_tail)
+
+    def test_verify_case_checks_artifacts_before_hidden_verifier(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            case_dir = self.write_case(root, "artifact-case", artifacts=[
+                {"path": "calc.py", "sha256": hashlib.sha256(b"other").hexdigest()},
+            ])
+            cases, errors = load_cases(root, {"artifact-case"})
+            self.assertEqual(errors, [])
+            workdir = Path(tmp) / "workdir"
+            shutil.copytree(case_dir / "fixture", workdir)
+            outcome = verify_workdir(cases[0], workdir)
+            self.assertFalse(outcome.passed)
+            self.assertIsNone(outcome.verifier_exit_code)
+            self.assertEqual(outcome.output_tail, "")
+            self.assertEqual(len(outcome.artifact_errors), 1)
 
 
 if __name__ == "__main__":

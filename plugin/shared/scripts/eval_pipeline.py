@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
-"""Read-only lifecycle audit for a ghs-managed project.
+"""Read-only lifecycle audit and benchmark case loading for ghs projects.
 
-This module will gain the benchmark runner in later tasks; the audit engine is
-deliberately standalone so its report schema and exit contract stay stable.
+The benchmark runner will be added in a later task; audit and case primitives
+are deliberately standalone so their report schemas stay stable.
 
 Usage:
     command python3 eval_pipeline.py audit --project-dir <PROJECT_DIR>
 """
 
 import argparse
+import dataclasses
+import hashlib
 import json
 import os
 import re
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 from ghs_compat import force_utf8_stdio
@@ -28,6 +30,45 @@ REVIEW_SIGNAL_RE = re.compile(
 VALID_FEATURE_STATUSES = {"pending", "in_progress", "completed", "blocked"}
 VALID_PLAN_STATUSES = {"planning", "in_progress", "completed", "on_hold"}
 TERMINAL_PLAN_STATUSES = {"approved", "aborted", "completed"}
+CASE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+OUTPUT_TAIL_LIMIT = 4000
+
+
+@dataclasses.dataclass(frozen=True)
+class ExpectedArtifact:
+    path: str
+    sha256: str | None
+
+
+@dataclasses.dataclass(frozen=True)
+class Case:
+    name: str
+    title: str
+    verify_timeout_seconds: int
+    directory: Path
+    brief_path: Path
+    fixture_dir: Path
+    verifier_path: Path
+    expected_artifacts: tuple[ExpectedArtifact, ...]
+
+
+@dataclasses.dataclass(frozen=True)
+class CaseError:
+    name: str
+    errors: tuple[str, ...]
+
+    @property
+    def case_valid(self) -> bool:
+        return False
+
+
+@dataclasses.dataclass(frozen=True)
+class VerifyOutcome:
+    passed: bool
+    verifier_exit_code: int | None
+    timed_out: bool
+    output_tail: str
+    artifact_errors: tuple[str, ...]
 
 
 def _read_json(path: Path) -> tuple[Any | None, str | None]:
@@ -37,6 +78,235 @@ def _read_json(path: Path) -> tuple[Any | None, str | None]:
         return None, "file not found"
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         return None, f"cannot read JSON: {exc}"
+
+
+def _decode_process_output(value: bytes | str | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def _output_tail(stdout: bytes | str | None, stderr: bytes | str | None) -> str:
+    output = "\n".join(
+        part for part in (
+            _decode_process_output(stdout).strip(),
+            _decode_process_output(stderr).strip(),
+        ) if part
+    )
+    return output[-OUTPUT_TAIL_LIMIT:]
+
+
+def _safe_artifact_path(path: Any) -> str | None:
+    """Return the canonical POSIX relative path, or None when unsafe."""
+    if not isinstance(path, str) or not path or "\x00" in path or "\\" in path:
+        return None
+    try:
+        posix_path = PurePosixPath(path)
+        windows_path = PureWindowsPath(path)
+    except (TypeError, ValueError):
+        return None
+    if (
+        posix_path.as_posix() != path
+        or posix_path.is_absolute()
+        or windows_path.is_absolute()
+        or windows_path.drive
+        or windows_path.root
+        or any(part in ("", ".", "..") for part in posix_path.parts)
+    ):
+        return None
+    return path
+
+
+def _validate_expected_artifacts(data: Any) -> tuple[tuple[ExpectedArtifact, ...], list[str]]:
+    errors: list[str] = []
+    artifacts: list[ExpectedArtifact] = []
+    if not isinstance(data, dict):
+        return tuple(), ["expected_artifacts.json must contain a JSON object"]
+    if set(data) != {"schema_version", "artifacts"}:
+        errors.append("expected_artifacts.json has an invalid schema")
+    if data.get("schema_version") != 1:
+        errors.append("expected_artifacts.json schema_version must be 1")
+    raw_artifacts = data.get("artifacts")
+    if not isinstance(raw_artifacts, list):
+        errors.append("artifacts must be a list")
+        raw_artifacts = []
+    seen: set[str] = set()
+    for index, item in enumerate(raw_artifacts):
+        if not isinstance(item, dict) or set(item) - {"path", "sha256"} or "path" not in item:
+            errors.append(f"artifact {index} has an invalid schema")
+            continue
+        safe_path = _safe_artifact_path(item["path"])
+        if safe_path is None:
+            errors.append(f"artifact {index} path is not a safe relative POSIX path")
+            continue
+        if safe_path in seen:
+            errors.append(f"artifact path is duplicated: {safe_path}")
+            continue
+        seen.add(safe_path)
+        digest = item.get("sha256")
+        if digest is not None and not (
+            isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest)
+        ):
+            errors.append(f"artifact sha256 must be null or 64 lowercase hex: {safe_path}")
+            digest = None
+        artifacts.append(ExpectedArtifact(safe_path, digest))
+    return tuple(artifacts), errors
+
+
+def _load_case(directory: Path) -> tuple[Case | None, list[str]]:
+    errors: list[str] = []
+    case_path = directory / "case.json"
+    brief_path = directory / "brief.md"
+    fixture_dir = directory / "fixture"
+    verifier_path = directory / "verify.py"
+    expected_path = directory / "expected_artifacts.json"
+
+    if not CASE_NAME_RE.fullmatch(directory.name):
+        errors.append("case directory name is invalid")
+    data, error = _read_json(case_path)
+    if error:
+        errors.append(f"case.json: {error}")
+        data = {}
+    title = ""
+    timeout = 120
+    if not isinstance(data, dict):
+        errors.append("case.json must contain a JSON object")
+        data = {}
+    required_keys = {"schema_version", "name", "title"}
+    if set(data) - required_keys - {"verify_timeout_seconds"}:
+        errors.append("case.json has an invalid schema")
+    if data.get("schema_version") != 1:
+        errors.append("case.json schema_version must be 1")
+    if data.get("name") != directory.name:
+        errors.append("case.json name must match the directory name")
+    if not isinstance(data.get("title"), str) or not data.get("title", "").strip():
+        errors.append("case.json title must be a non-empty string")
+    else:
+        title = data["title"]
+    if "verify_timeout_seconds" in data:
+        timeout = data["verify_timeout_seconds"]
+        if isinstance(timeout, bool) or not isinstance(timeout, int) or timeout <= 0:
+            errors.append("verify_timeout_seconds must be a positive integer")
+    if not brief_path.is_file() or not brief_path.read_text(
+        encoding="utf-8", errors="replace"
+    ).strip():
+        errors.append("brief.md must be a non-empty file")
+    if not fixture_dir.is_dir():
+        errors.append("fixture must be a directory")
+    if not verifier_path.is_file():
+        errors.append("verify.py must be a file")
+    if not expected_path.is_file():
+        errors.append("expected_artifacts.json must be a file")
+        artifacts = tuple()
+    else:
+        expected_data, expected_error = _read_json(expected_path)
+        if expected_error:
+            errors.append(f"expected_artifacts.json: {expected_error}")
+            expected_data = {}
+        artifacts, artifact_errors = _validate_expected_artifacts(expected_data)
+        errors.extend(artifact_errors)
+
+    if errors:
+        return None, errors
+    return Case(
+        name=directory.name,
+        title=title,
+        verify_timeout_seconds=timeout,
+        directory=directory,
+        brief_path=brief_path,
+        fixture_dir=fixture_dir,
+        verifier_path=verifier_path,
+        expected_artifacts=artifacts,
+    ), []
+
+
+def load_cases(
+    cases_dir: Path, selected: set[str] | None
+) -> tuple[list[Case], list[CaseError]]:
+    """Discover, validate, filter, and deterministically sort benchmark cases."""
+    if not cases_dir.is_dir():
+        return [], [CaseError(cases_dir.name, ["cases directory not found"])]
+    requested = set(selected) if selected is not None else None
+    cases: list[Case] = []
+    errors: list[CaseError] = []
+    try:
+        candidates = sorted(path for path in cases_dir.iterdir() if path.is_dir())
+    except OSError as exc:
+        return [], [CaseError(cases_dir.name, [f"cannot read cases directory: {exc}"])]
+    for directory in candidates:
+        if requested is not None and directory.name not in requested:
+            continue
+        case, case_errors = _load_case(directory)
+        if case is None:
+            errors.append(CaseError(directory.name, tuple(case_errors)))
+        else:
+            cases.append(case)
+    if requested is not None:
+        found = {case.name for case in cases} | {error.name for error in errors}
+        errors.extend(
+            CaseError(name, ("case directory not found",))
+            for name in sorted(requested - found)
+        )
+    errors.sort(key=lambda item: item.name)
+    return cases, errors
+
+
+def _verify_artifacts(case: Case, workdir: Path) -> list[str]:
+    errors: list[str] = []
+    for artifact in case.expected_artifacts:
+        path = workdir.joinpath(*PurePosixPath(artifact.path).parts)
+        if not path.is_file():
+            errors.append(f"expected artifact is missing: {artifact.path}")
+            continue
+        if artifact.sha256 is None:
+            continue
+        digest = hashlib.sha256()
+        try:
+            with path.open("rb") as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(chunk)
+        except OSError as exc:
+            errors.append(f"cannot hash expected artifact {artifact.path}: {exc}")
+            continue
+        if digest.hexdigest() != artifact.sha256:
+            errors.append(f"expected artifact sha256 mismatch: {artifact.path}")
+    return errors
+
+
+def verify_workdir(case: Case, workdir: Path) -> VerifyOutcome:
+    """Check declared artifacts, then execute the case's hidden verifier."""
+    artifact_errors = tuple(_verify_artifacts(case, workdir))
+    if artifact_errors:
+        return VerifyOutcome(False, None, False, "", artifact_errors)
+    command = [sys.executable, str(case.verifier_path), str(workdir)]
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=workdir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=case.verify_timeout_seconds,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return VerifyOutcome(
+            False, None, True,
+            _output_tail(exc.stdout, exc.stderr),
+            artifact_errors,
+        )
+    except OSError as exc:
+        return VerifyOutcome(
+            False, None, False, f"verifier could not start: {exc}", artifact_errors,
+        )
+    return VerifyOutcome(
+        completed.returncode == 0,
+        completed.returncode,
+        False,
+        _output_tail(completed.stdout, completed.stderr),
+        artifact_errors,
+    )
 
 
 def _check(
