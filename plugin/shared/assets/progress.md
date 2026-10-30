@@ -1,35 +1,11 @@
 # Project Progress Log
 
-This file tracks the progress of all agent sessions. Each session should add an entry at the top.
-
----
-
-## Session Template
-
-```markdown
-## Session N - YYYY-MM-DD
-**Agent**: To-Features | Coding
-**Plan**: [Plan ID if applicable]
-**Feature**: [Feature ID if applicable]
-
-### Work Completed
-- [What was implemented or done]
-
-### Tests Performed
-- [How changes were verified]
-
-### Issues Encountered
-- [Any blockers, bugs, or challenges]
-
-### Decisions Made
-- [Architectural or design choices]
-
-### Next Steps
-- [Recommended next actions]
-```
+This file is the project's human-readable session record; for the entry structure, see
+`shared/references/session-entry-format.md` in the ghs plugin — this file is copied
+wholesale from that plugin into `.ghs/`, so the bare path is not resolvable here, and
+the authoritative pointer is each skill's
+`${CLAUDE_PLUGIN_ROOT}/shared/references/session-entry-format.md` reference.
 
 ---
 
 ## Sessions
-
-<!-- New sessions should be added above this line -->
