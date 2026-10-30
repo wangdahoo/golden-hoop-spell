@@ -39,6 +39,7 @@ ghs:code --parallel 的多代理编排），宿主差异收敛到最小兼容层
 - Codex 侧沿用旧方案映射（general-purpose/Plan→default、Explore→explorer）；pi 侧角色映射由 designer 依据 pi-subagents 工具语义与官方文档裁量 [DISCRETIONARY]
 - 交互原语按宿主分级：Codex 用原生 request_user_input（root 线程 + 交互式终端在场时；异步回执语义），pi 用插件自带 ask_user 扩展（随根 package.json 的 pi.extensions 声明分发，基于 ctx.ui 实现，无构建步骤）；两宿主在原语不可用时统一落回文本提问（单题/选项枚举/默认推荐与单轮批量语义保持，沿用旧方案成文条款）[用户裁决 2026-10-30 调研修订]
 - 「长输出子代理文件交接 + 完成判定只看 raw 文件解析结果」与 retry/状态机零改动原则继续有效
+- status.py 补齐 ghs_compat.force_utf8_stdio()：GBK 控制台打印 emoji 触发 UnicodeEncodeError（2026-10-30 /ghs:status 实证，status.py 是唯一漏接 UTF-8 stdio 的主脚本），与 p2-feat-001 同类问题的收尾修复 [用户裁决 2026-10-30 并入 p1]
 
 ## Open Space
 - pi 侧技能/插件安装机制的落地形态（designer 调研 pi 官方文档后落定）
@@ -264,3 +265,15 @@ README.md / README-zh.md 的 Installation 下各增两小节：`### Install on O
   - command: `grep -ci "recommended" plugin/pi-extensions/ask-user.ts` → ≥1（推荐默认语义在场）
   - command: `command python3 plugin/shared/scripts/validate_manifests.py` → exit 0（扩展落盘后六项清单校验保持全过）
   - [UNDEFINED-INPUT] pi 版本演进致扩展加载失败: pi 会话不崩溃且工具表无 ask_user，pi-host.md 文本提问 fallback 生效
+
+### Task 10: status.py 补齐 UTF-8 stdio 守卫
+- Files: plugin/shared/scripts/status.py
+- Points:
+  - 修法对照 sibling idiom 同型移植（init_project.py / resolve_project_dir.py 已实证写法），在既有 import 区之后新增 `from ghs_compat import force_utf8_stdio`，并在 `main()` 首行（argparse 解析之前）调用 `force_utf8_stdio()`，使成功输出与错误路径（features.json 缺失提示）均走 UTF-8 stdio；ghs_compat.py 与脚本同目录、经 sys.path 可直接导入，复用既有模块，零新依赖、仅标准库
+  - 零行为面改动：不改动任何既有 print 内容与顺序、退出码语义、CLI 参数（--project-dir/-p）与错误路径文案；diff 恰为两处新增行（import 行 + main 首行调用）、零删行，emoji 输出格式原样保持（status.py 是唯一漏接 UTF-8 stdio 的主脚本，本任务后全脚本面收敛）
+  - 测试裁量：不加 test_*.py——本修复是 main() 执行期的 stdio 重配副作用，导入式单测无法触及；既有 test_* 惯用 subprocess 跑 CLI 断言，若按该模式新增 test_status.py 其断言将与本卡 PYTHONIOENCODING=gbk 运行锚点完全重复，故以运行锚点把关（裸跑 + GBK 强制跑）更贴近真实 GBK 控制台场景
+- Anchors:
+  - command: `grep -cE "^from ghs_compat import force_utf8_stdio|^    force_utf8_stdio\(\)" plugin/shared/scripts/status.py` → 2（import 行与 main 首行调用各恰一处，与 sibling idiom 同型同位）
+  - command: `git diff -- plugin/shared/scripts/status.py | grep -cE '^-[^-]'` → 0（零删行，既有输出格式与退出码零改动）
+  - command: `command python3 plugin/shared/scripts/status.py --project-dir .` → exit 0 且输出含 📦 Project 行（仓库根 .ghs/features.json 在位；修复前在首个 emoji print 处 UnicodeEncodeError exit 1）
+  - command: `PYTHONIOENCODING=gbk command python3 plugin/shared/scripts/status.py --project-dir .` → exit 0 且输出含 📦 Project 行（跨平台确定性等价模拟 GBK 控制台，无需真实 GBK 终端——修复前任何平台必现 UnicodeEncodeError，修复后 force_utf8_stdio 无条件 reconfigure 为 utf-8 而通过，且无需 PYTHONIOENCODING=utf-8 环境兜底）
