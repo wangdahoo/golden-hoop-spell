@@ -91,7 +91,7 @@ def archive_plan_files(
 
     progress_path = project_dir / GHS_DIR / "progress.md"
     if progress_path.exists():
-        sessions = extract_plan_sessions(progress_path, plan_id)
+        sessions = extract_sessions_section(progress_path)
         if sessions:
             with open(archive_progress, "w", encoding="utf-8") as f:
                 f.write(f"# Progress Log - {plan.get('name', plan_id)}\n\n")
@@ -103,9 +103,17 @@ def archive_plan_files(
 
 
 def _entry_matches_plan(entry: str, plan_id: str) -> bool:
-    """Check if a session entry belongs to a given plan by inspecting only the
-    title line and first few metadata lines — NOT the full body text.
-    This prevents false positives when a session body mentions another plan ID.
+    """Removal-only matcher: decide whether a progress.md entry belongs to the
+    plan being archived, so it can be removed from the active progress.md.
+
+    Inspects only the title line and the first few metadata lines — NOT the
+    full body text. This prevents false positives when a session body mentions
+    another plan ID.
+
+    This predicate is NEVER used to build the archived copy: the archive
+    snapshot is the FULL Sessions section (see extract_sessions_section).
+    Entries whose header lines contain no plan id — including '**Plan**: N/A'
+    entries — never match and are therefore always kept in the active file.
     """
     lines = entry.strip().split("\n")
     # Check the title line (first line) and up to the next 10 metadata lines
@@ -125,24 +133,27 @@ def _split_entries(content: str) -> List[str]:
     return entries
 
 
-def extract_plan_sessions(progress_path: Path, plan_id: str) -> str:
-    """Extract sessions related to a specific plan from progress.md.
+def extract_sessions_section(progress_path: Path) -> str:
+    """Return a full snapshot of the Sessions section of progress.md.
 
-    Splits by all H2 headings (## Session, ## Feature Planning,
-    ## Parallel Orchestration, etc.) and matches plan_id only in the
-    title/metadata lines to avoid false positives from body text.
+    Returns everything after the '## Sessions' heading line (stripped),
+    regardless of which plan each entry belongs to — the archived copy is a
+    lossless snapshot, so entries with '**Plan**: N/A' and entries of other
+    plans are preserved too.
+
+    If the heading is missing (hand-edited or legacy files), falls back to
+    joining ALL H2 entries so archiving never loses data. Returns an empty
+    string when there is no session content at all (callers guard on it).
     """
     with open(progress_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    entries = _split_entries(content)
-    relevant_entries = []
+    match = re.search(r"^## Sessions[ \t]*$", content, flags=re.MULTILINE)
+    if match:
+        return content[match.end():].strip()
 
-    for entry in entries:
-        if _entry_matches_plan(entry, plan_id):
-            relevant_entries.append(entry)
-
-    return "\n\n".join(relevant_entries)
+    # Heading missing: fall back to all H2 entries to avoid data loss.
+    return "\n\n".join(_split_entries(content)).strip()
 
 
 def remove_archived_plan(features_data: Dict, plan_id: str) -> Dict:
