@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "name": "divide-by-zero-guard",
+  "title": "Fix integer division and zero-divisor behavior",
+  "verify_timeout_seconds": 120
+}

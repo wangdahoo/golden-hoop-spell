@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "name": "word-count-cli",
+  "title": "Count whitespace tokens in a UTF-8 text file",
+  "verify_timeout_seconds": 120
+}

@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "artifacts": [
+    {"path": "users.py", "sha256": null}
+  ]
+}

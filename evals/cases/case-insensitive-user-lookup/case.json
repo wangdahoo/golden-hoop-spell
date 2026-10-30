@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "name": "case-insensitive-user-lookup",
+  "title": "Add a case-insensitive exact email lookup",
+  "verify_timeout_seconds": 120
+}

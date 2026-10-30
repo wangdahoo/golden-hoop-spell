@@ -278,6 +278,62 @@ class EvalPipelineCaseTests(unittest.TestCase):
             self.assertTrue(any(
                 "expected_artifacts.json" in error.errors[0] for error in errors
             ))
+    # Corpus-level seed tests.
+    CASES_DIR = SCRIPT_DIR.parents[2] / "evals" / "cases"
+    REFERENCE_SOURCES = {
+        "case-insensitive-user-lookup": ("users.py", '''"""Reference user lookup."""\n\n\ndef find_user(users, email):\n    normalized = email.casefold()\n    return next(\n        (record for record in users\n         if record["email"].casefold() == normalized),\n         None,\n    )\n'''),
+        "divide-by-zero-guard": ("calc.py", '''"""Reference arithmetic helpers."""\n\n\ndef add(left: int, right: int) -> int:\n    return left + right\n\n\ndef divide(numerator: int, divisor: int) -> int:\n    if divisor == 0:\n        raise ValueError("divisor must not be zero")\n    quotient = abs(numerator) // abs(divisor)\n    return -quotient if (numerator < 0) != (divisor < 0) else quotient\n'''),
+        "word-count-cli": ("word_count.py", '''"""Count whitespace-separated tokens in a UTF-8 file."""\n\nimport sys\nfrom pathlib import Path\n\n\ndef main() -> int:\n    if len(sys.argv) != 2:\n        print("usage: word_count.py PATH", file=sys.stderr)\n        return 2\n    text = Path(sys.argv[1]).read_text(encoding="utf-8")\n    print(len(text.split()))\n    return 0\n\n\nif __name__ == "__main__":\n    sys.exit(main())\n'''),
+    }
+
+    def test_seed_cases_are_valid(self):
+        cases, errors = load_cases(self.CASES_DIR, None)
+        self.assertEqual(errors, [])
+        self.assertEqual([case.name for case in cases], [
+            "case-insensitive-user-lookup",
+            "divide-by-zero-guard",
+            "word-count-cli",
+        ])
+
+    def test_seed_hidden_verifiers_separate_fixture_and_reference(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cases, errors = load_cases(self.CASES_DIR, None)
+            self.assertEqual(errors, [])
+            self.assertEqual(len(cases), 3)
+            for case in cases:
+                with self.subTest(case=case.name):
+                    fixture_workdir = root / f"{case.name}-fixture"
+                    shutil.copytree(case.fixture_dir, fixture_workdir)
+                    fixture_result = verify_workdir(case, fixture_workdir)
+                    self.assertFalse(fixture_result.passed)
+
+                    reference_workdir = root / f"{case.name}-reference"
+                    shutil.copytree(case.fixture_dir, reference_workdir)
+                    filename, source = self.REFERENCE_SOURCES[case.name]
+                    (reference_workdir / filename).write_text(source, encoding="utf-8")
+                    reference_result = verify_workdir(case, reference_workdir)
+                    self.assertTrue(
+                        reference_result.passed,
+                        reference_result.output_tail,
+                    )
+
+    def test_readme_documents_metrics_and_case_rules(self):
+        readme = (self.CASES_DIR.parent / "README.md").read_text(encoding="utf-8")
+        for required in (
+            "case.json",
+            "verify.py",
+            "expected_artifacts.json",
+            "review_rounds",
+            "rejects",
+            "blocked_count",
+            "materialization_rewrites",
+            "pass_rate_delta",
+            "baseline_env",
+            "添加案例",
+            "无效案例",
+        ):
+            self.assertIn(required, readme)
 
     def test_expected_artifact_paths_are_rejected_when_unsafe(self):
         with tempfile.TemporaryDirectory() as tmp:
