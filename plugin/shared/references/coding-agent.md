@@ -385,38 +385,20 @@ Subagents already committed their implementation files individually. No further 
 
 ### progress.md Structure
 
-Add entry at **top** of sessions section:
+The structure of `.ghs/progress.md` entries is specified in
+`${CLAUDE_PLUGIN_ROOT}/shared/references/session-entry-format.md` — the single source of
+truth. Add the entry at the **top** of the `## Sessions` section.
 
-```markdown
-## Session N - YYYY-MM-DD
-**Agent**: Coding Agent
-**Plan**: [Plan ID]
-**Feature**: [Feature ID and title]
+Coding sessions write a **Session Entry** with two coding-specific sections added to the
+base structure:
 
-### Implementation
-- [What was implemented]
-- [Key decisions made]
+- `### Files Changed` — inserted directly after `### Work Completed`; body lines of the
+  form `- path/to/file.ts - [brief description]`
+- `### Acceptance Criteria Status` — inserted directly after `### Decisions Made`; body
+  lines of the form `- [x] [criterion]` (mark unfinished criteria `[ ]` and explain why)
 
-### Files Changed
-- path/to/file.ts - [brief description]
-- path/to/another.ts - [brief description]
-
-### Tests Performed
-- [How the feature was verified]
-- [What scenarios were tested]
-
-### Issues Encountered
-- [Any blockers or bugs found]
-- [How they were resolved]
-
-### Acceptance Criteria Status
-- [x] Criterion 1
-- [x] Criterion 2
-- [ ] Criterion 3 (if incomplete, explain why)
-
-### Next Steps
-- [Recommended next feature or follow-up]
-```
+so a coding session entry reads, in order: Work Completed, Files Changed, Tests Performed,
+Issues Encountered, Decisions Made, Acceptance Criteria Status, Next Steps.
 
 ### features.json Updates
 

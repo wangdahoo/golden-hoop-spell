@@ -194,6 +194,8 @@ Add new plan with structured features following schema above.
 
 ### Update progress.md
 
+Entry structure spec: `${CLAUDE_PLUGIN_ROOT}/shared/references/session-entry-format.md` — the block below mirrors its Planning Entry template.
+
 Add planning session entry at top:
 
 ```markdown
@@ -214,8 +216,8 @@ Add planning session entry at top:
 [Clear goal statement]
 
 ### Implementation Order
-1. [feature-id] - [title]
-2. [feature-id] - [title]
+1. [feature-id] - [title] - [complexity]
+2. [feature-id] - [title] - [complexity]
 
 ### Notes
 [Any context or decisions]

@@ -174,6 +174,8 @@ This file contains realistic, fully-populated examples for reference.
 
 ## Example 2: Feature Planning Session (progress.md)
 
+Entry structure spec: session-entry-format.md
+
 ```markdown
 ## Feature Planning - 2024-01-15
 **Agent**: To-Features Agent
@@ -204,13 +206,11 @@ Implement complete user authentication flow including social login, email verifi
 5. p1-feat-004 - Connect login form to API (core) - PENDING
 6. p1-feat-006 - Create registration page (ui) - PENDING
 
-### Technical Decisions
+### Notes
 - Chose Auth0 over custom JWT for faster initial implementation
 - Using PostgreSQL with Prisma ORM for user data
 - Storing JWT in HTTP-only cookies for XSS protection
 - Rate limiting at 5 attempts per minute for login
-
-### Notes
 - Password reset functionality deferred to Plan 2
 - Social login buttons in UI but implementation in Plan 3
 - Need to coordinate with design team on login page mockups
@@ -218,13 +218,15 @@ Implement complete user authentication flow including social login, email verifi
 
 ## Example 3: Coding Session (progress.md)
 
+Entry structure spec: session-entry-format.md
+
 ```markdown
 ## Session 2 - 2024-01-16
 **Agent**: Coding Agent
 **Plan**: p1
 **Feature**: p1-feat-002 - Create login page
 
-### Implementation
+### Work Completed
 - Created LoginForm component with email and password fields
 - Implemented form validation using React Hook Form
 - Added show/hide password toggle button
@@ -252,6 +254,11 @@ Implement complete user authentication flow including social login, email verifi
 - Initially used email pattern validation that was too strict, relaxed to accept + signs in emails
 - Had to adjust button spacing for mobile view, added media query
 
+### Decisions Made
+- Chose React Hook Form over a hand-rolled validation implementation for maintainability
+- Scoped component styles with CSS modules instead of a global stylesheet
+- Deferred API wiring to p1-feat-004; the form submits against a mock handler until then
+
 ### Acceptance Criteria Status
 - [x] Login form displays correctly on desktop and mobile
 - [x] Email validation shows error for invalid format
@@ -277,7 +284,7 @@ project-root/
 │   └── archived/
 │       └── p1_authentication_plan_20240120_143000/
 │           ├── features.json    (complete p1 data)
-│           └── progress.md      (all p1 sessions)
+│           └── progress.md      (full snapshot of the Sessions section at archive time)
 ```
 
 ## Usage Patterns
@@ -288,7 +295,7 @@ project-root/
 2. Archive completed plans (if any)
 3. Analyze user requirements
 4. Create features following the authentication plan example
-5. Create the plan entry in `.ghs/features.json` (initial Write) and add the session entry to `.ghs/progress.md`; later status mutations go through `update_features.py`
+5. Create the plan entry in `.ghs/features.json` (initial Write) and add the planning entry to `.ghs/progress.md`; later status mutations go through `update_features.py`
 
 ### Coding Agent Workflow
 
