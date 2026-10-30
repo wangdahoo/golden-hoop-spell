@@ -5,6 +5,7 @@ import argparse
 import json
 import re
 from pathlib import Path
+from ghs_compat import force_utf8_stdio
 
 
 def read_features_json(filepath: Path):
@@ -44,6 +45,7 @@ def format_feature_status(features):
 
 
 def main():
+    force_utf8_stdio()
     parser = argparse.ArgumentParser(description="Display current project status")
     parser.add_argument(
         "--project-dir",
