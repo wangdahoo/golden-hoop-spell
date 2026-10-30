@@ -1,0 +1,126 @@
+<svg viewBox="0 0 780 912" width="780" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', system-ui, sans-serif; }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L8,4 L0,8 L2,4 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="390" y="32" font-size="16" fill="#1e293b" text-anchor="middle" font-weight="bold">改造后 —— 插件整体运作流程（p1 方案 · 三宿主 + 最小兼容层）</text>
+
+  <!-- user entry chips -->
+  <rect x="110" y="56" width="170" height="54" rx="6" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="195" y="76" font-size="11" fill="#1e40af" text-anchor="middle">Claude Code</text>
+  <text x="195" y="94" font-size="10" fill="#1e40af" text-anchor="middle">/ghs:xxx 显式命令</text>
+
+  <rect x="305" y="56" width="170" height="54" rx="6" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="390" y="76" font-size="11" fill="#1e40af" text-anchor="middle">Codex CLI</text>
+  <text x="390" y="94" font-size="10" fill="#1e40af" text-anchor="middle">自然语言 / @ 调用</text>
+
+  <rect x="500" y="56" width="170" height="54" rx="6" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="585" y="76" font-size="11" fill="#1e40af" text-anchor="middle">Pi agent</text>
+  <text x="585" y="94" font-size="10" fill="#1e40af" text-anchor="middle">/skill:ghs:&lt;name&gt;</text>
+
+  <path d="M195,115 L195,129" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+  <path d="M390,115 L390,129" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+  <path d="M585,115 L585,129" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- install container: x=90, y=140, w=600, h=116, bottom=256 -->
+  <rect x="90" y="140" width="600" height="116" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="6,4"/>
+  <text x="100" y="154" font-size="11" fill="#64748b">安装通道（三宿主原生清单 · 单一技能源）</text>
+
+  <rect x="110" y="166" width="170" height="72" rx="6" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="195" y="187" font-size="11" fill="#1e40af" text-anchor="middle">Claude marketplace</text>
+  <text x="195" y="204" font-size="10" fill="#1e40af" text-anchor="middle">marketplace.json 清单不变</text>
+  <text x="195" y="221" font-size="10" fill="#1e40af" text-anchor="middle">Claude 侧零影响</text>
+
+  <rect x="305" y="166" width="170" height="72" rx="6" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="390" y="187" font-size="11" fill="#1e40af" text-anchor="middle">Codex plugin</text>
+  <text x="390" y="204" font-size="10" fill="#1e40af" text-anchor="middle">marketplace add → /plugins</text>
+  <text x="390" y="221" font-size="10" fill="#1e40af" text-anchor="middle">.codex-plugin/plugin.json</text>
+
+  <rect x="500" y="166" width="170" height="72" rx="6" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="585" y="187" font-size="11" fill="#1e40af" text-anchor="middle">pi install</text>
+  <text x="585" y="204" font-size="10" fill="#1e40af" text-anchor="middle">git: · npm: · 本地路径</text>
+  <text x="585" y="221" font-size="10" fill="#1e40af" text-anchor="middle">package.json pi.skills</text>
+
+  <path d="M390,261 L390,272" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- load -->
+  <rect x="110" y="283" width="560" height="36" rx="6" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="390" y="305" font-size="12" fill="#1e40af" text-anchor="middle">加载同一套 SKILL.md ×7 —— 正文零宿主差异（既有行零删改）</text>
+
+  <path d="M390,324 L390,333" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- pointer block -->
+  <rect x="110" y="344" width="560" height="54" rx="6" fill="#fef3c7" stroke="#f59e0b"/>
+  <text x="390" y="365" font-size="11" fill="#b45309" text-anchor="middle">Platform Adaptation 指针块 —— 七文件逐字一致 · 唯一新增</text>
+  <text x="390" y="383" font-size="10" fill="#b45309" text-anchor="middle">Claude 直读跳过；其它宿主 → SKILL.md 路径自举插件根 → host_compat.py</text>
+
+  <path d="M195,403 L195,414" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+  <path d="M390,403 L390,414" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+  <path d="M585,403 L585,414" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- host lanes -->
+  <rect x="110" y="425" width="170" height="72" rx="6" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="195" y="446" font-size="11" fill="#1e40af" text-anchor="middle">Claude Code</text>
+  <text x="195" y="463" font-size="10" fill="#1e40af" text-anchor="middle">${CLAUDE_PLUGIN_ROOT} 原生展开</text>
+  <text x="195" y="480" font-size="10" fill="#1e40af" text-anchor="middle">按正文执行 · 零改动</text>
+
+  <rect x="305" y="425" width="170" height="72" rx="6" fill="#fef3c7" stroke="#f59e0b"/>
+  <text x="390" y="446" font-size="11" fill="#b45309" text-anchor="middle">Codex CLI</text>
+  <text x="390" y="463" font-size="10" fill="#b45309" text-anchor="middle">读 codex-host.md</text>
+  <text x="390" y="480" font-size="10" fill="#b45309" text-anchor="middle">spawn_agent（multi_agent 前置）</text>
+
+  <rect x="500" y="425" width="170" height="72" rx="6" fill="#fef3c7" stroke="#f59e0b"/>
+  <text x="585" y="446" font-size="11" fill="#b45309" text-anchor="middle">Pi agent</text>
+  <text x="585" y="463" font-size="10" fill="#b45309" text-anchor="middle">读 pi-host.md</text>
+  <text x="585" y="480" font-size="10" fill="#b45309" text-anchor="middle">subagent（pi-subagents 前置）</text>
+
+  <!-- interaction tiering strip -->
+  <rect x="310" y="524" width="370" height="54" rx="6" fill="#fce7f3" stroke="#ec4899"/>
+  <text x="495" y="545" font-size="10" fill="#9d174d" text-anchor="middle">Codex：request_user_input · pi：ask_user 扩展（插件自带）</text>
+  <text x="495" y="563" font-size="10" fill="#9d174d" text-anchor="middle">原语不可用 → 文本提问（单题/选项/批量语义保持）</text>
+
+  <path d="M390,502 L390,513" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+  <path d="M585,502 L585,513" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Claude bypass -->
+  <path d="M195,502 L195,594" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+  <text x="206" y="545" font-size="10" fill="#64748b">Claude 直通</text>
+
+  <path d="M495,583 L495,594" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- shared core container: x=90, y=605, w=600, h=256, bottom=861 -->
+  <rect x="90" y="605" width="600" height="256" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="6,4"/>
+  <text x="100" y="619" font-size="11" fill="#64748b">共享不变核 —— 三宿主同一套 · 零改动</text>
+
+  <rect x="110" y="629" width="560" height="54" rx="6" fill="#d1fae5" stroke="#22c55e"/>
+  <text x="390" y="650" font-size="11" fill="#166534" text-anchor="middle">子代理响应 → raw 文件（Claude 落盘 · Codex 写盘回路径 · pi file-only 落盘）</text>
+  <text x="390" y="668" font-size="10" fill="#64748b" text-anchor="middle">parse_delimited_output.py --input-file → JSON 结果 · 完成判定只看 raw 解析</text>
+
+  <path d="M390,688 L390,699" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+
+  <rect x="110" y="710" width="560" height="54" rx="6" fill="#d1fae5" stroke="#22c55e"/>
+  <text x="390" y="731" font-size="11" fill="#166534" text-anchor="middle">.ghs/ 状态盘 —— features.json · progress.md · plans/-status.json</text>
+  <text x="390" y="749" font-size="10" fill="#64748b" text-anchor="middle">update_features.py / update_plan_status.py 唯一脚本写入口</text>
+
+  <path d="M390,769 L390,780" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+
+  <rect x="110" y="791" width="560" height="54" rx="6" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="390" y="812" font-size="11" fill="#1e40af" text-anchor="middle">技能闭环 —— Closing Steps 路由按宿主读法（/ghs:xxx ↔ /skill:ghs:xxx）</text>
+  <text x="390" y="830" font-size="10" fill="#64748b" text-anchor="middle">init → plan / to-features → code → status → archive</text>
+
+  <!-- legend -->
+  <rect x="209" y="877" width="10" height="10" rx="2" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="223" y="886" font-size="10" fill="#64748b">入口/主流程</text>
+  <rect x="309" y="877" width="10" height="10" rx="2" fill="#fef3c7" stroke="#f59e0b"/>
+  <text x="323" y="886" font-size="10" fill="#64748b">编排/兼容层</text>
+  <rect x="409" y="877" width="10" height="10" rx="2" fill="#fce7f3" stroke="#ec4899"/>
+  <text x="423" y="886" font-size="10" fill="#64748b">交互原语</text>
+  <rect x="487" y="877" width="10" height="10" rx="2" fill="#d1fae5" stroke="#22c55e"/>
+  <text x="501" y="886" font-size="10" fill="#64748b">数据·脚本·状态</text>
+</svg>

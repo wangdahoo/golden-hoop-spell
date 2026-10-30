@@ -1,0 +1,88 @@
+<svg viewBox="0 0 780 728" width="780" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', system-ui, sans-serif; }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L8,4 L0,8 L2,4 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="390" y="32" font-size="16" fill="#1e293b" text-anchor="middle" font-weight="bold">改造前 —— 插件整体运作流程（v0.6.0 · Claude Code 单宿主）</text>
+
+  <!-- User entry -->
+  <rect x="250" y="56" width="280" height="36" rx="6" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="390" y="78" font-size="12" fill="#1e40af" text-anchor="middle">用户（/ghs:xxx 显式命令触发）</text>
+
+  <path d="M390,97 L390,113" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Host container -->
+  <!-- container: x=90, y=124, w=600, h=309, bottom=433 -->
+  <rect x="90" y="124" width="600" height="309" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="6,4"/>
+  <text x="100" y="138" font-size="11" fill="#64748b">Claude Code 宿主 —— 改造前唯一支持宿主</text>
+
+  <rect x="110" y="152" width="560" height="36" rx="6" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="390" y="174" font-size="12" fill="#1e40af" text-anchor="middle">安装：Claude marketplace（.claude-plugin/marketplace.json 单清单）</text>
+
+  <path d="M390,193 L390,204" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+
+  <rect x="110" y="215" width="560" height="36" rx="6" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="390" y="237" font-size="12" fill="#1e40af" text-anchor="middle">加载：SKILL.md ×7 —— ${CLAUDE_PLUGIN_ROOT} 宿主原生展开</text>
+
+  <path d="M390,256 L390,267" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+
+  <rect x="110" y="278" width="560" height="36" rx="6" fill="#fef3c7" stroke="#f59e0b"/>
+  <text x="390" y="300" font-size="12" fill="#b45309" text-anchor="middle">主会话 dispatcher —— 流程编排 · 文件即通信 · 状态机读-后-分支</text>
+
+  <path d="M390,319 L390,330" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- mechanism chips -->
+  <rect x="110" y="341" width="170" height="72" rx="6" fill="#fce7f3" stroke="#ec4899"/>
+  <text x="195" y="362" font-size="11" fill="#9d174d" text-anchor="middle">AskUserQuestion</text>
+  <text x="195" y="379" font-size="10" fill="#9d174d" text-anchor="middle">交互原语 · 会话内提问</text>
+  <text x="195" y="396" font-size="10" fill="#9d174d" text-anchor="middle">全树 ×28 处</text>
+
+  <rect x="305" y="341" width="170" height="72" rx="6" fill="#f3e8ff" stroke="#a855f6"/>
+  <text x="390" y="362" font-size="11" fill="#6b21a8" text-anchor="middle">Task tool 子代理</text>
+  <text x="390" y="379" font-size="10" fill="#6b21a8" text-anchor="middle">Plan · general-purpose</text>
+  <text x="390" y="396" font-size="10" fill="#6b21a8" text-anchor="middle">Explore · 后台并行</text>
+
+  <rect x="500" y="341" width="170" height="72" rx="6" fill="#d1fae5" stroke="#22c55e"/>
+  <text x="585" y="362" font-size="11" fill="#166534" text-anchor="middle">command python3</text>
+  <text x="585" y="379" font-size="10" fill="#166534" text-anchor="middle">shared/scripts ×12</text>
+  <text x="585" y="396" font-size="10" fill="#166534" text-anchor="middle">确定性操作全下沉</text>
+
+  <path d="M390,438 L390,449" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- handoff protocol -->
+  <rect x="110" y="460" width="560" height="54" rx="6" fill="#d1fae5" stroke="#22c55e"/>
+  <text x="390" y="481" font-size="11" fill="#166534" text-anchor="middle">子代理响应 → dispatcher 落盘 raw → parse_delimited_output.py --input-file</text>
+  <text x="390" y="499" font-size="10" fill="#64748b" text-anchor="middle">定界符 &lt;&lt;&lt;PLAN_START&gt;&gt;&gt; 等 · 多级 fallback · JSON 结果文件 Read 消费</text>
+
+  <path d="M390,519 L390,530" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- state -->
+  <rect x="110" y="541" width="560" height="54" rx="6" fill="#d1fae5" stroke="#22c55e"/>
+  <text x="390" y="562" font-size="11" fill="#166534" text-anchor="middle">.ghs/ 状态盘 —— features.json · progress.md · plans/-status.json</text>
+  <text x="390" y="580" font-size="10" fill="#64748b" text-anchor="middle">update_features.py / update_plan_status.py 唯一脚本写入口</text>
+
+  <path d="M390,600 L390,611" stroke="#64748b" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- loop -->
+  <rect x="110" y="622" width="560" height="54" rx="6" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="390" y="643" font-size="11" fill="#1e40af" text-anchor="middle">技能闭环 —— Closing Steps 文字路由（disable-model-invocation: true）</text>
+  <text x="390" y="661" font-size="10" fill="#64748b" text-anchor="middle">init → plan / to-features → code → status → archive</text>
+
+  <!-- legend -->
+  <rect x="175" y="692" width="10" height="10" rx="2" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="189" y="701" font-size="10" fill="#64748b">入口/主流程</text>
+  <rect x="275" y="692" width="10" height="10" rx="2" fill="#fef3c7" stroke="#f59e0b"/>
+  <text x="289" y="701" font-size="10" fill="#64748b">编排/兼容层</text>
+  <rect x="375" y="692" width="10" height="10" rx="2" fill="#f3e8ff" stroke="#a855f6"/>
+  <text x="389" y="701" font-size="10" fill="#64748b">子代理</text>
+  <rect x="443" y="692" width="10" height="10" rx="2" fill="#fce7f3" stroke="#ec4899"/>
+  <text x="457" y="701" font-size="10" fill="#64748b">交互原语</text>
+  <rect x="521" y="692" width="10" height="10" rx="2" fill="#d1fae5" stroke="#22c55e"/>
+  <text x="535" y="701" font-size="10" fill="#64748b">数据·脚本·状态</text>
+</svg>
