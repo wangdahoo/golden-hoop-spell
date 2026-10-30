@@ -4,7 +4,7 @@
 单文件多宿主形态：公共腿不重复，宿主差异只在安装（§2）、发现（§3）、派发与交互原语（§6）三处；
 与 Claude 基线的回归腿单列 §10。
 
-- 插件：`golden-hoop-spell`，版本 `0.6.0`（Claude 清单 `plugin/.claude-plugin/plugin.json`、Codex 清单
+- 插件：`golden-hoop-spell`，版本 `0.7.0`（Claude 清单 `plugin/.claude-plugin/plugin.json`、Codex 清单
   `plugin/.codex-plugin/plugin.json`、Pi 清单仓库根 `package.json`，三者一致性由
   `command python3 plugin/shared/scripts/validate_manifests.py` 把关）。
 - 宿主差异知识：`plugin/shared/references/codex-host.md` 与 `plugin/shared/references/pi-host.md`；

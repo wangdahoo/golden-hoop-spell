@@ -23,7 +23,7 @@ Checks (plan 2026-10-30-codex-pi-compat, Design "清单三件套与多清单校�
    repo root) to a directory with 7 SKILL.md files, ``pi.extensions`` is a
    non-empty string array (the extension directory is deliberately NOT
    required to exist on disk - the extension file lands in a later task),
-   and the version equals ``0.6.0``.
+   and the version matches the Claude manifest.
 6. If ``.agents/plugins/marketplace.json`` exists, cross-check it against
    the legacy marketplace entry by entry; its absence is OK by design.
 
@@ -46,7 +46,6 @@ from pathlib import Path
 from ghs_compat import force_utf8_stdio
 
 PLUGIN_NAME = "golden-hoop-spell"
-EXPECTED_VERSION = "0.6.0"
 EXPECTED_SKILL_COUNT = 7
 
 CODEX_MANIFEST_RELPATH = Path("plugin") / ".codex-plugin" / "plugin.json"
@@ -203,7 +202,8 @@ def check_marketplace(repo_root: Path) -> "tuple[bool, str]":
 
 def check_package_json(repo_root: Path) -> "tuple[bool, str]":
     """Check 5: pi.skills globs resolve with 7 SKILL.md each, pi.extensions
-    is a non-empty string array (disk presence not required), version pinned."""
+    is a non-empty string array (disk presence not required), and the
+    version matches the Claude manifest (the single source of truth)."""
     data, error = _load_json_object(repo_root / PACKAGE_JSON_RELPATH)
     if error is not None:
         return False, error
@@ -241,10 +241,14 @@ def check_package_json(repo_root: Path) -> "tuple[bool, str]":
         )
 
     version = data.get("version")
-    if version != EXPECTED_VERSION:
+    claude, claude_error = _load_json_object(repo_root / CLAUDE_MANIFEST_RELPATH)
+    if claude_error is not None:
+        return False, f"Claude manifest unavailable: {claude_error}"
+    claude_version = claude.get("version")
+    if version != claude_version:
         return False, (
             f"version mismatch: package.json={version!r} "
-            f"expected {EXPECTED_VERSION!r}"
+            f"claude manifest={claude_version!r}"
         )
     return True, (
         f"pi.skills -> {', '.join(skills)} ({EXPECTED_SKILL_COUNT} SKILL.md each); "
