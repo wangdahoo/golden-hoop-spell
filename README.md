@@ -124,6 +124,18 @@ Move completed plans' feature data to `.ghs/archived/` and reset tracking files 
 
 Only archives plans that have reached `completed` status. For archiving regardless of status, use `/ghs:force-archive` (will ask for confirmation).
 
+## Windows Console Encoding Note
+
+Tracking files under `.ghs/` (`features.json`, `progress.md`) are UTF-8 encoded. On a Windows console whose code page is GBK, viewing them with `cat`/`type` shows garbled Chinese — this only affects human terminal viewing, not Claude (the agent reads files through the UTF-8-aware Read tool and is unaffected).
+
+For human viewing, switch the console code page to UTF-8 first:
+
+```bash
+chcp 65001
+```
+
+or simply open the files in a UTF-8-aware editor (VS Code, etc.).
+
 ## License
 
 MIT

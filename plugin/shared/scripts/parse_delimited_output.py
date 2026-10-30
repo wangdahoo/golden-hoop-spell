@@ -14,6 +14,8 @@ Usage:
         --completion-signal "REVIEW COMPLETE" --min-length 150
     command python3 parse_delimited_output.py --kind plan --input-string "..." \
         --completion-signal "PLAN DESIGN COMPLETE" --min-length 300
+    command python3 parse_delimited_output.py --kind plan --input-file raw.txt \
+        --output-file result.json
     command python3 parse_delimited_output.py --start-token "<BEGIN>" --end-token "<END>" \
         --input-string "..."
 
@@ -35,6 +37,15 @@ Output: a single JSON object on stdout with the following shape:
       }
     }
 
+When ``--output-file PATH`` is given, the exact same JSON object is written to
+that file as UTF-8 (the file is the payload channel; stdout only carries a
+one-line ASCII pointer). This keeps non-ASCII plan/review content off the
+console codepage — on legacy GBK Windows consoles a stdout round-trip used to
+mojibake or crash. Without ``--output-file`` the JSON goes to stdout exactly
+as before (backward compatible). The result file is written regardless of the
+parse outcome (including ``empty`` / ``malformed``), so callers can Read it to
+inspect warnings; the exit code still reflects the parse status.
+
 Exit codes:
     0 - parsing succeeded (status == ok or fallback_used)
     1 - parsing failed (status == empty or malformed)
@@ -46,6 +57,8 @@ import json
 import re
 import sys
 from pathlib import Path
+
+from ghs_compat import force_utf8_stdio
 
 
 # Token name per --kind value (used to derive the delimiter labels).
@@ -442,6 +455,7 @@ def _read_input(args) -> str:
 
 
 def main() -> int:
+    force_utf8_stdio()
     parser = argparse.ArgumentParser(
         description="Parse delimiter-based subagent output with fallback strategies."
     )
@@ -487,6 +501,13 @@ def main() -> int:
         default=None,
         help="Completion-signal prefix to detect and strip (line-anchored, word-boundary)",
     )
+    parser.add_argument(
+        "--output-file",
+        default=None,
+        help="Write the result JSON to this path as UTF-8 instead of stdout "
+        "(stdout then carries a one-line ASCII pointer; recommended on "
+        "Windows GBK consoles). Written even when the parse fails.",
+    )
     try:
         args = parser.parse_args()
         raw_text = _read_input(args)
@@ -508,7 +529,22 @@ def main() -> int:
         print(f"parse_delimited_output: error: {exc}", file=sys.stderr)
         return 2
 
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if args.output_file:
+        try:
+            out_path = Path(args.output_file)
+            if str(out_path.parent) and not out_path.parent.exists():
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(
+                json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            print(f"parse_delimited_output: error: {exc}", file=sys.stderr)
+            return 2
+        # One ASCII pointer line; the payload never crosses the console codepage.
+        print(f"parse_delimited_output: result written to {out_path}")
+    else:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
     if result["status"] in ("ok", "fallback_used"):
         return 0
     return 1

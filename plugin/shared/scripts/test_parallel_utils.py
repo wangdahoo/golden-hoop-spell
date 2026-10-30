@@ -76,5 +76,67 @@ class ParallelOutputLiteralChineseTests(unittest.TestCase):
             self.assertNotIn("\\u", out)
 
 
+class PlanSelectionGuardTests(unittest.TestCase):
+    """Without --plan-id, multiple plans must be a hard error (exit 2 on
+    stderr), never a silent plans[0] guess."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.project = Path(self._tmp.name)
+        (self.project / ".ghs").mkdir(parents=True)
+
+    def write_features(self, plan_ids):
+        plans = [
+            {
+                "id": pid,
+                "name": f"plan {pid}",
+                "status": "in_progress",
+                "features": [
+                    {"id": f"{pid}-feat-001", "title": "t", "status": "pending"}
+                ],
+            }
+            for pid in plan_ids
+        ]
+        data = {"project": {"name": "demo"}, "plans": plans}
+        (self.project / ".ghs" / "features.json").write_text(
+            json.dumps(data, ensure_ascii=False), encoding="utf-8"
+        )
+
+    def run_cli(self, *extra):
+        cmd = [
+            sys.executable,
+            str(SCRIPT_DIR / "parallel_utils.py"),
+            "--project-dir",
+            str(self.project),
+        ] + list(extra)
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace"
+        )
+        return proc.returncode, proc.stdout, proc.stderr
+
+    def test_multiple_plans_without_plan_id_errors(self):
+        self.write_features(["pa", "pb"])
+        rc, out, err = self.run_cli()
+        self.assertEqual(rc, 2)
+        self.assertIn("pa", err)
+        self.assertIn("pb", err)
+        self.assertIn("--plan-id", err)
+        self.assertNotIn("ready_features", out)  # stdout stays clean
+
+    def test_single_plan_without_plan_id_defaults(self):
+        self.write_features(["only"])
+        rc, out, err = self.run_cli()
+        self.assertEqual(rc, 0, err)
+        self.assertIn("ready_features", out)
+
+    def test_explicit_plan_id_wins(self):
+        self.write_features(["pa", "pb"])
+        rc, out, err = self.run_cli("--plan-id", "pb")
+        self.assertEqual(rc, 0, err)
+        self.assertIn("pb-feat-001", out)
+        self.assertNotIn("pa-feat-001", out)
+
+
 if __name__ == "__main__":
     unittest.main()

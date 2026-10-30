@@ -124,6 +124,18 @@ claude --plugin-dir /path/to/golden-hoop-spell/plugin
 
 仅归档状态为 `completed` 的 plan。若不论状态都要归档，请使用 `/ghs:force-archive`（会要求确认）。
 
+## Windows 控制台乱码说明
+
+`.ghs/` 目录下的跟踪文件（`features.json`、`progress.md`）均为 UTF-8 编码。在默认代码页为 GBK 的 Windows 控制台中用 `cat`/`type` 直接查看时，中文会显示为乱码——这只影响人工终端查看，不影响 Claude（agent 通过 Read 工具读取文件，对 UTF-8 完全感知）。
+
+人工查看时，先将控制台代码页切换为 UTF-8：
+
+```bash
+chcp 65001
+```
+
+或直接使用支持 UTF-8 的编辑器（如 VS Code）打开查看。
+
 ## 许可证
 
 MIT

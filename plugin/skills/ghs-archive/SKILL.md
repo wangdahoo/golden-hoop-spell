@@ -1,6 +1,7 @@
 ---
 name: ghs:archive
 description: "Archive the feature groups of completed plans to clean up active project state. Only archives plans with status 'completed'. For incomplete plans, use /ghs:force-archive instead."
+disable-model-invocation: true
 ---
 
 # Archive Completed Plans
@@ -53,6 +54,53 @@ No git commit needed — `.ghs/` tracking files are local metadata (gitignored b
 
 ## If No Completed Plans
 
-If there are no completed plans, tell the user. They may need to:
-- Mark the plan as completed (all features done)
-- Or use `/ghs:force-archive` if they want to archive regardless of status
+If there are no completed plans, probe each active plan first — the plan status may simply be stale (all features done, status never flipped):
+
+1. For each plan in `.ghs/features.json`, run:
+   ```bash
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/update_features.py \
+     --file <PROJECT_DIR>/.ghs/features.json --plan-state <plan_id>
+   ```
+2. If a plan reports `"can_complete": true` but the plan status is not `completed`, use AskUserQuestion:「计划 <plan_id> 全部特性已完成但状态未翻转，是否标记为 completed 并继续归档？」On confirm, run `--set-plan <plan_id> --status completed`, then re-run Step 1 (`archive_plans.py --list`) and continue the normal flow.
+3. If every remaining plan still has pending/in_progress/blocked features, tell the user. They may need to:
+   - Complete the remaining features first (`/ghs:code`)
+   - Or use `/ghs:force-archive` if they want to archive regardless of status
+
+## Closing Steps
+
+Finish every run of this skill with BOTH closing steps. They are mandatory: every ghs skill sets `disable-model-invocation: true` in its frontmatter, so the model never auto-loads the next skill — after this skill finishes, these pointers are the only channel that routes the user to the next stage of the workflow.
+
+### Step 1: Append the progress.md session entry
+
+Add ONE entry at the **top** of the `## Sessions` section in `<PROJECT_DIR>/.ghs/progress.md`, following the field structure of the Session Template built into that file. Run this step AFTER `archive_plans.py` — the script resets `.ghs/progress.md` to the default template, so the entry must be appended afterwards:
+
+```markdown
+## Session N - YYYY-MM-DD
+**Agent**: Archive Agent
+**Plan**: [Plan ID if applicable]
+**Feature**: [Feature ID if applicable]
+
+### Work Completed
+- [What was done in this session]
+
+### Tests Performed
+- [How the results were verified]
+
+### Issues Encountered
+- [Any blockers, bugs, or challenges]
+
+### Decisions Made
+- [Architectural or design choices]
+
+### Next Steps
+- [Recommended next actions]
+```
+
+`N` continues the numbering of existing `## Session N` entries.
+
+### Step 2: Give the user the next-step guidance
+
+End the session by telling the user exactly what to run next. Never invoke the next ghs skill yourself — with model invocation disabled, every ghs skill is triggered only by an explicit user command:
+
+- Done — archiving closes the ghs lifecycle for the archived plans; no next command is required
+- To start a new round of work later: `/ghs:to-features` (or `/ghs:plan`) — begin the next plan

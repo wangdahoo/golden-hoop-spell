@@ -49,7 +49,7 @@
    git add <list each modified implementation file explicitly>
    git commit -m "feat(<scope>): <description>"
    ```
-3. Update `.ghs/features.json` if feature complete
+3. Mark the feature complete via `update_features.py --set-feature <feature_id> --status completed` if all acceptance criteria are met
 4. Update `.ghs/progress.md` with session summary
 
 ## Implementation Process
@@ -272,10 +272,10 @@ For each background subagent that returns:
         - 计算 `intersection = set(expected_files) ∩ set(actual_files)`。
         - 如果 `intersection` 为空（即所有 commit 加起来一个期望文件都没碰），**不要标记 feature 完成**，触发 Format Recovery retry，appendix 中加一句：`Your commit did not touch any file listed in this feature's files_affected in features.json. Did you read features.json to find your feature's expected files?`。retry 后仍空则走 User Decision Handling。**此分支不写 features.json。**
         - 如果 `intersection` 非空（或 sanity check 走 skip 分支），进入步骤 2。
-     2. Update `.ghs/features.json` for `<feature_id>` with `status: "completed"`. Run lint/build to verify code quality. Verify acceptance criteria. Proceed to next feature.
+     2. Mark the feature completed via the helper: `command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/update_features.py --file <PROJECT_DIR>/.ghs/features.json --set-feature <feature_id> --status completed`. Run lint/build to verify code quality. Verify acceptance criteria. Proceed to next feature.
 
      **备注**：`dispatch_start_iso` 是 orchestrator 在 Dispatch Phase spawn 该 subagent 那一刻记录的 ISO 时间戳（`datetime.now(timezone.utc).isoformat()`），用于时间窗 git log 查询，覆盖 subagent 可能的多 commit。
-   - **`blocked`** → Update `.ghs/features.json` with `status: "blocked"` and `blocked_reason: <reason from JSON>`. Record result and proceed.
+   - **`blocked`** → Mark blocked via the helper: `update_features.py --set-feature <feature_id> --status blocked --blocked-reason "<reason from JSON>"`. Record result and proceed.
    - **`unknown`** with `retry_count < MAX_RETRY (=1)` → Increment `retry_count`, re-dispatch the subagent with the original prompt plus the Format Recovery appendix. Save next raw to `<feature_id>.raw.attempt<N+1>`. Return to step 1.
    - **`unknown`** with `retry_count >= MAX_RETRY` → Use AskUserQuestion per the User Decision Handling table. **Never silently hang on an unparseable response.**
 
@@ -325,8 +325,8 @@ When retry is exhausted (`retry_count >= MAX_RETRY`) and the parser still cannot
 | Option | Dispatcher behavior | File side-effects | When available |
 |--------|---------------------|-------------------|----------------|
 | **Retry once more** | Increment `retry_count`, re-dispatch with Format Recovery appendix | New `<feature_id>.raw.attempt<N+1>` | Always available |
-| **Manually mark as completed** | Update `.ghs/features.json` with `status: "completed"`. Annotate `.ghs/progress.md` noting "manually marked after format deviation retry" | `.ghs/features.json` written; `.ghs/progress.md` annotated | Always available — but only choose this after manually verifying (commit log + file diff) |
-| **Manually mark as blocked** | Update `.ghs/features.json` with `status: "blocked"` + user-supplied `blocked_reason`. Annotate `.ghs/progress.md` | `.ghs/features.json` written; `.ghs/progress.md` annotated | Always available |
+| **Manually mark as completed** | Run `update_features.py --set-feature <feature_id> --status completed`. Annotate `.ghs/progress.md` noting "manually marked after format deviation retry" | `.ghs/features.json` written; `.ghs/progress.md` annotated | Always available — but only choose this after manually verifying (commit log + file diff) |
+| **Manually mark as blocked** | Run `update_features.py --set-feature <feature_id> --status blocked --blocked-reason "<user-supplied reason>"`. Annotate `.ghs/progress.md` | `.ghs/features.json` written; `.ghs/progress.md` annotated | Always available |
 | **Abort this feature, continue with others** | Leave `.ghs/features.json` for this feature at `status: "pending"`. Annotate `.ghs/progress.md`. Continue with other features in the batch | `.ghs/features.json` unchanged for this feature; `.ghs/progress.md` annotated | Always available (parallel mode only) |
 
 The AskUserQuestion prompt must show the parser's `status`, `strategy`, and `warnings` from the most recent attempt, list the four options, and include the path to the most recent `.raw.attempt<N>` file so the user can inspect the raw subagent output before deciding.
@@ -335,7 +335,7 @@ The AskUserQuestion prompt must show the parser's `status`, `strategy`, and `war
 
 Subagents already committed their implementation files individually. No further git commits needed — the orchestrator only updates local tracking files.
 
-1. **Update .ghs/features.json** — Completed features get `status: "completed"`, blocked get `status: "blocked"` with `blocked_reason`
+1. **Update feature statuses via `update_features.py`** (script-only; never hand-edit) — `--set-feature <feature_id> --status completed` for completed, `--status blocked --blocked-reason "<reason>"` for blocked
 
 2. **Write .ghs/progress.md entry** — Add parallel orchestration summary at the top of sessions section:
 

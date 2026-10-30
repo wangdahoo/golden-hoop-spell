@@ -2,6 +2,7 @@
 name: ghs:code
 description: "Implement features from the current plan. Supports single-feature mode (default, one feature per session) and parallel mode (--parallel for independent features). This is the primary development workflow for ghs-managed projects."
 argument-hint: "[--parallel] [--max-parallel=N]"
+disable-model-invocation: true
 ---
 
 # Feature Implementation
@@ -84,11 +85,25 @@ Check all acceptance criteria:
    git commit -m "feat(<scope>): <description> (Feature: <feature-id>)"
    ```
 
-2. Update the feature status in `.ghs/features.json` (only change `status` field):
+2. Update the feature status via the helper (script-only, Windows-safe — NEVER hand-edit `.ghs/features.json`, NEVER use inline `python -c`; same rationale as `update_plan_status.py` in ghs-plan):
+   ```bash
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/update_features.py \
+     --file <PROJECT_DIR>/.ghs/features.json \
+     --set-feature <feature_id> --status completed
+   ```
    - `completed` — all acceptance criteria met, tests pass
-   - `blocked` — cannot proceed, document reason in `blocked_reason`
+   - `blocked` — cannot proceed; append `--blocked-reason "<reason>"`
 
-3. Update `.ghs/progress.md` with session summary at the **top** of the sessions section:
+3. **Plan completion check** — run:
+   ```bash
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/update_features.py \
+     --file <PROJECT_DIR>/.ghs/features.json --plan-state <plan_id>
+   ```
+   - `"can_complete": true` → use AskUserQuestion:「该计划下全部特性已完成，是否将计划标记为 completed？」On confirm run `--set-plan <plan_id> --status completed`; on decline keep `in_progress`.
+   - `false` → do NOT flip; report `counts` and `blocked_ids` to the user.
+   Include the outcome (including "kept in_progress") in the session entry's Next Steps.
+
+4. Update `.ghs/progress.md` with session summary at the **top** of the sessions section. The entry follows the Session Template field structure built into `.ghs/progress.md` (the five sections `### Work Completed` / `### Tests Performed` / `### Issues Encountered` / `### Decisions Made` / `### Next Steps`), with two coding-specific sections added:
 
 ```markdown
 ## Session N - YYYY-MM-DD
@@ -96,9 +111,8 @@ Check all acceptance criteria:
 **Plan**: [Plan ID]
 **Feature**: [Feature ID and title]
 
-### Implementation
+### Work Completed
 - [What was implemented]
-- [Key decisions made]
 
 ### Files Changed
 - path/to/file.ts - [brief description]
@@ -108,6 +122,9 @@ Check all acceptance criteria:
 
 ### Issues Encountered
 - [Any blockers or bugs found]
+
+### Decisions Made
+- [Key decisions made]
 
 ### Acceptance Criteria Status
 - [x] Criterion 1
@@ -133,7 +150,7 @@ When invoked with `--parallel`, implement multiple independent features concurre
 
 1. **Identify ready features and build batches**: Use `parallel_utils.py` to get ready features and conflict-free batches:
    ```bash
-   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parallel_utils.py --project-dir "<PROJECT_DIR>" --max-parallel <N>
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/parallel_utils.py --project-dir "<PROJECT_DIR>" --plan-id <plan_id> --max-parallel <N>
    ```
    The script outputs JSON with `ready_features`, `batches`, `skipped`, and any `cycles` detected. Use the `batches` output directly for dispatch.
 
@@ -210,10 +227,10 @@ For each background subagent that returns:
         - 计算 `intersection = set(expected_files) ∩ set(actual_files)`。
         - 如果 `intersection` 为空（即所有 commit 加起来一个期望文件都没碰），**不要标记 feature 完成**，触发 Format Recovery retry，appendix 中加一句：`Your commit did not touch any file listed in this feature's files_affected in features.json. Did you read features.json to find your feature's expected files?`。retry 后仍空则走 User Decision Handling。**此分支不写 features.json。**
         - 如果 `intersection` 非空（或 sanity check 走 skip 分支），进入步骤 2。
-     2. Update `.ghs/features.json` for `<feature_id>` with `status: "completed"`. Run lint/build to verify code quality. Verify acceptance criteria. Proceed to next feature.
+     2. Mark the feature completed via the helper: `command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/update_features.py --file <PROJECT_DIR>/.ghs/features.json --set-feature <feature_id> --status completed`. Run lint/build to verify code quality. Verify acceptance criteria. Proceed to next feature.
 
      **备注**：`dispatch_start_iso` 是 orchestrator 在 Dispatch Phase spawn 该 subagent 那一刻记录的 ISO 时间戳（`datetime.now(timezone.utc).isoformat()`），用于时间窗 git log 查询，覆盖 subagent 可能的多 commit。
-   - **`blocked`**: Update `.ghs/features.json` with `status: "blocked"` and `blocked_reason: <reason from JSON>`. Proceed to next feature.
+   - **`blocked`**: Mark blocked via the helper: `update_features.py --set-feature <feature_id> --status blocked --blocked-reason "<reason from JSON>"`. Proceed to next feature.
    - **`unknown`** with `retry_count < MAX_RETRY (=1)`: Increment `retry_count`, re-dispatch the subagent with the original prompt plus the [Format Recovery](#format-recovery) appendix for completion signals. Save the next raw response to `<feature_id>.raw.attempt<N+1>` and return to step 2.
    - **`unknown`** with `retry_count >= MAX_RETRY`: Use AskUserQuestion per [## User Decision Handling](#user-decision-handling). **Never silently hang on an unparseable response.**
 
@@ -221,8 +238,21 @@ For each background subagent that returns:
 
 Subagents already committed their implementation files individually. No further git commits needed — the orchestrator only updates local tracking files.
 
-1. Update `.ghs/features.json` — completed features get `status: "completed"`, blocked get `status: "blocked"`
-2. Add parallel orchestration summary to top of `.ghs/progress.md` sessions section
+1. For each parsed result, update the feature status via the helper (script-only — NEVER hand-edit `.ghs/features.json`, NEVER inline `python -c`):
+   ```bash
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/update_features.py \
+     --file <PROJECT_DIR>/.ghs/features.json \
+     --set-feature <feature_id> --status completed
+   ```
+   Use `--status blocked --blocked-reason "<reason>"` for blocked results.
+2. **Plan completion check** — after all features in the plan are marked, run:
+   ```bash
+   command python3 ${CLAUDE_PLUGIN_ROOT}/shared/scripts/update_features.py \
+     --file <PROJECT_DIR>/.ghs/features.json --plan-state <plan_id>
+   ```
+   - `"can_complete": true` → use AskUserQuestion:「该计划下全部特性已完成，是否将计划标记为 completed？」On confirm run `--set-plan <plan_id> --status completed`; on decline keep `in_progress`.
+   - `false` → do NOT flip; report `counts` (list `blocked_ids` if any) to the user.
+3. Add parallel orchestration summary to top of `.ghs/progress.md` sessions section, recording the plan-completion outcome (including "kept in_progress") in Next Steps
 
 ### Parallel Error Handling
 
@@ -289,8 +319,8 @@ When retry is exhausted (`retry_count >= MAX_RETRY`) and the parser still cannot
 | Option | Dispatcher behavior | File side-effects | When available |
 |--------|---------------------|-------------------|----------------|
 | **Retry once more** | Increment `retry_count` (one-shot override past `MAX_RETRY`), re-dispatch the subagent with the [Format Recovery](#format-recovery) appendix | New `<feature_id>.raw.attempt<N+1>` | Always available |
-| **Manually mark as completed** | Update `.ghs/features.json` for the feature with `status: "completed"`. Note in `.ghs/progress.md` that the feature was "manually marked after format deviation retry" | `.ghs/features.json` written; `.ghs/progress.md` annotated | Always available — but only choose this if you have manually verified the implementation (commit log + file diff) |
-| **Manually mark as blocked** | Update `.ghs/features.json` with `status: "blocked"` and a `blocked_reason` you supply. Note in `.ghs/progress.md` | `.ghs/features.json` written; `.ghs/progress.md` annotated | Always available |
+| **Manually mark as completed** | Run `update_features.py --set-feature <feature_id> --status completed`. Note in `.ghs/progress.md` that the feature was "manually marked after format deviation retry" | `.ghs/features.json` written; `.ghs/progress.md` annotated | Always available — but only choose this if you have manually verified the implementation (commit log + file diff) |
+| **Manually mark as blocked** | Run `update_features.py --set-feature <feature_id> --status blocked --blocked-reason "<your reason>"`. Note in `.ghs/progress.md` | `.ghs/features.json` written; `.ghs/progress.md` annotated | Always available |
 | **Abort this feature, continue with others** | Leave `.ghs/features.json` for this feature at `status: "pending"`. Note the abort decision in `.ghs/progress.md`. Continue with other features in the batch | `.ghs/features.json` unchanged for this feature; `.ghs/progress.md` annotated | Always available (parallel mode only) |
 
 The AskUserQuestion prompt must:
@@ -318,3 +348,18 @@ For detailed schemas and more examples:
 ## Red Flags — Stop and Fix
 
 Stop immediately if you encounter: build errors, lint errors, failing tests, app won't start, previously working feature broken, or uncommitted changes from previous session. Fix these before proceeding.
+
+## Closing Steps
+
+Finish every run of this skill with BOTH closing steps. They are mandatory: every ghs skill sets `disable-model-invocation: true` in its frontmatter, so the model never auto-loads the next skill — after this skill finishes, these pointers are the only channel that routes the user to the next stage of the workflow.
+
+### Step 1: Append the progress.md session entry
+
+The session summary written at Step 5 of End of Session (single mode) or the parallel orchestration summary (parallel mode) fulfills this step — do not append a duplicate entry. It must follow the Session Template field structure built into `.ghs/progress.md`: the five sections `### Work Completed` / `### Tests Performed` / `### Issues Encountered` / `### Decisions Made` / `### Next Steps` are required, with the coding-specific sections (`### Files Changed`, `### Acceptance Criteria Status`) kept as additions.
+
+### Step 2: Give the user the next-step guidance
+
+End the session by telling the user exactly what to run next. Never invoke the next ghs skill yourself — with model invocation disabled, every ghs skill is triggered only by an explicit user command:
+
+- Next step: `/ghs:status` — review plan/feature completion before picking up the next feature
+- When every feature of the active plan is completed: `/ghs:archive` — archive the plan's feature groups to clean up active state

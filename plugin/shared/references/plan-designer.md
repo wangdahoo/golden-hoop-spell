@@ -92,6 +92,31 @@ Then the task tail — one card per task, strict serialization (a script parses 
    the anchor records the required non-crashing behavior.
 5. Task cards carry NO status field — execution status lives in the feature tracker, not
    the plan.
+6. Structural fields are ASCII-punctuation-only. The parser keys on ASCII punctuation, so
+   inside the task tail's structural fields — the task heading, the field labels, and
+   every anchor line — use ASCII punctuation only. Full-width forms are forbidden there
+   (`：` `，` `（` `）` `「」` `《》` `——` …). Four positions hard-fail on the wrong
+   character, each surfacing as `malformed` (or a missing task zone) at materialization:
+   - The colon after `{N}` in `### Task {N}: {title}` — a full-width `：` makes the
+     heading invisible to the parser (task zone not found, or the numbering sequence
+     breaks).
+   - The colon in each field label `- Files:` / `- Interfaces:` / `- Points:` /
+     `- Anchors:` — a full-width `：` reads as a missing field.
+   - The separator between an anchor's subject and its criterion — the parser splits on
+     the FIRST ASCII colon. `- test_x：no UnicodeEncodeError under GBK stdio` contains no
+     ASCII colon at all, so the criterion parses as empty and the card is rejected
+     (`anchor with an empty judgement`) even though it reads as complete prose. If an
+     ASCII colon appears only later in the line, the boundary is silently misplaced and
+     the recorded criterion is wrong.
+   - The colon in a `[UNDEFINED-INPUT] {category}: {behavior}` anchor — the parser
+     requires an ASCII colon somewhere in the line; a full-width `：` alone is rejected.
+   Do not place an ASCII colon inside an anchor subject either — the first colon is
+   always read as the separator, so a subject colon truncates the subject and mangles the
+   criterion boundary. Prose fields (`title`, `- Points:`, `- Interfaces:` content) may
+   use the documentation language freely; only their label colons are structural.
+   Correct: `  - test_gbk_stdout: no UnicodeEncodeError under GBK stdio`
+   Incorrect: `  - test_gbk_stdout：GBK stdio 下无 UnicodeEncodeError`
+   (full-width `：` → the parser sees an empty criterion → `malformed`)
 
 ## Discretion Culture (QUESTION is retired)
 
@@ -112,7 +137,8 @@ Do not emit `QUESTION:` lines — the question channel is retired. Instead:
 1. Every body section maps to a contract entry — no orphans?
 2. Zero under-decisions: no line an implementer must guess?
 3. Zero over-decisions: no transcription wearing design's clothes?
-4. Every task has 1-5 anchors, all with non-empty criteria?
+4. Every task has 1-5 anchors, all with non-empty criteria and ASCII-only structural
+   punctuation (rule 6)?
 5. Assumptions list matches the discretionary calls you actually made?
 
 ## Using the Context Snapshot

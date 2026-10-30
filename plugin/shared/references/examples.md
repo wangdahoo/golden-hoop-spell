@@ -288,7 +288,7 @@ project-root/
 2. Archive completed plans (if any)
 3. Analyze user requirements
 4. Create features following the authentication plan example
-5. Update `.ghs/features.json` and `.ghs/progress.md`
+5. Create the plan entry in `.ghs/features.json` (initial Write) and add the session entry to `.ghs/progress.md`; later status mutations go through `update_features.py`
 
 ### Coding Agent Workflow
 
@@ -296,4 +296,4 @@ project-root/
 2. Select ONE feature from current plan
 3. Implement following the coding session example
 4. Test thoroughly using checklist
-5. Update `.ghs/progress.md` and `.ghs/features.json`
+5. Update `.ghs/progress.md`; feature status via `update_features.py --set-feature`
