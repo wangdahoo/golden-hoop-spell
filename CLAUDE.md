@@ -26,7 +26,7 @@ Historical plan documents under `docs/ghs/plans/` reference the pre-move `skills
 - Skills reference shared resources via `${CLAUDE_PLUGIN_ROOT}/shared/`
 - Feature IDs follow `p{N}-feat-{NNN}` format
 - Commit messages use conventional format: `<type>(<scope>): <description>`
-- Each session logs to `.ghs/progress.md` at the top of the sessions section
+- `.ghs/progress.md` 写入方：`to-features` 写 Planning entry，`plan`/`code`/`archive` 写会话条目；条目插在 `## Sessions` 区顶部（条目结构规范：`plugin/shared/references/session-entry-format.md`）
 - **Python invocations use `command python3`, not bare `python3`**: Claude Code's shell snapshot systematically drops single-underscore zsh functions (`_xxx`), which breaks pyenv/nvm lazy loaders — bare `python3` resolves to a dangling wrapper that exits 127 with `_lazy_pyenv command not found`. `command python3` bypasses shell function lookup and resolves via PATH. This applies to all SKILL.md / reference doc / docstring examples that invoke a Python script.
 
 ## Critical Rules

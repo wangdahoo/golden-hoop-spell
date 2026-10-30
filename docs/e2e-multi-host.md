@@ -223,7 +223,8 @@ pi install /path/to/golden-hoop-spell/plugin
 - NOT_EXECUTED — Codex：会话内以自然语言描述或 @-mention 调用 `ghs:init`。依赖 §2.1 + §3。
 - NOT_EXECUTED — pi：会话内 `/skill:ghs:init`。依赖 §2.4 + §3。
 - 参考判据（供执行轮复用）：`.ghs/features.json` 与 `.ghs/progress.md` 生成、
-  `git check-ignore .ghs/features.json` 生效、`progress.md` 顶部新增会话条目。
+  `git check-ignore .ghs/features.json` 生效、`progress.md` 存在且含 `## Sessions` 区
+  （init 不写会话条目；首个条目由后续 `to-features`/`plan`/`code` 等技能写入）。
 
 ## 6. plan 三角色流水线（每宿主）
 
