@@ -17,7 +17,7 @@ def read_features_json(filepath: Path):
         return json.load(f)
 
 
-def read_progress_md(filepath: Path, last_n=5):
+def read_progress_md(filepath: Path, last_n=3):
     """Read last N sessions from progress.md."""
     if not filepath.exists():
         return None
@@ -141,7 +141,7 @@ def main():
     sessions = read_progress_md(progress_path)
     if sessions:
         print("📜 Recent Sessions:")
-        for session in sessions[:3]:
+        for session in sessions:
             lines = session.strip().split("\n")[:3]
             for line in lines:
                 if line.strip():
